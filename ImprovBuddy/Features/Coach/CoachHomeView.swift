@@ -96,6 +96,16 @@ struct CoachHomeView: View {
                 .padding()
             }
             .navigationTitle("Coach")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
             .sheet(isPresented: $coordinator.showingSetup) {
                 SessionSetupView(songs: songs, initialSong: selectedSong) { configuration in
                     Task {

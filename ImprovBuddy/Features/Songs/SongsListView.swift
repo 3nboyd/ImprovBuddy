@@ -23,12 +23,22 @@ struct SongsListView: View {
             }
             .navigationTitle("Songs")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
                         showingCreateSheet = true
                     } label: {
-                        Label("New Song", systemImage: "plus")
+                        Image(systemName: "plus")
                     }
+                    .accessibilityLabel("New Song")
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
                 }
             }
             .sheet(isPresented: $showingCreateSheet) {

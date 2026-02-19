@@ -20,6 +20,7 @@
 		2D93C20E9D5A92F9643A4592 /* ServiceContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E5C6942431F959198B9E69 /* ServiceContainer.swift */; };
 		2F6199CF751944F20D41D44C /* SimpleSynthThreadSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAA4A6DE284C5034F1E5350 /* SimpleSynthThreadSafetyTests.swift */; };
 		2F9AB14A8F61DA0296EA634D /* LickCardsLabsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C42F8174DC28F6D4063D0DA2 /* LickCardsLabsView.swift */; };
+		373D9604B5EF2173936FAB6C /* RecorderTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F36A7E7A1BFC985015BD4115 /* RecorderTabView.swift */; };
 		3D0220E2B37A4E0974738EA5 /* theory_library_v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 9468BE309757D3BFBD3DCA30 /* theory_library_v1.json */; };
 		413670266BF4F2ED95D12303 /* AudioEngineManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0EEAB4F1E3A7E067E8C0D6 /* AudioEngineManager.swift */; };
 		43059DF61DA3B857C7EA90AA /* MetronomeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE491D95B870F7F37484A485 /* MetronomeEngine.swift */; };
@@ -57,6 +58,7 @@
 		A1A6FA76EF0F85A1F55102C9 /* LibraryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4770D8825F98F8E692747D7A /* LibraryItem.swift */; };
 		A50C0E59E6E4C1EB905FEA09 /* TunerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9EC582B30E6D03938B1C25 /* TunerView.swift */; };
 		A88CE4C645681F2B5F91B4B0 /* LibraryHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5933941B69B8E26C70A5620 /* LibraryHomeView.swift */; };
+		ABE4EDF321CC8559CBBF088D /* TheoryTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7228EE91A8164390464DA56E /* TheoryTabView.swift */; };
 		AD13FBDA113754D68F923DCD /* ChordParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A57D496DCFAD3395F5FB18A /* ChordParser.swift */; };
 		AEB4A0EC26F504567E456B08 /* FormPositionTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479DA46CEBDAAC5EE4CC3AB4 /* FormPositionTrackerTests.swift */; };
 		B4F401AF8F3489CD4BFB5438 /* SongsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758CB7147E8D62F3B105B928 /* SongsListView.swift */; };
@@ -126,6 +128,7 @@
 		670B3AA71070CD25E6F358F1 /* BPMDetectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BPMDetectorView.swift; sourceTree = "<group>"; };
 		6CB9B602CC6E742621D02FB6 /* TheoryDatasetLoadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryDatasetLoadTests.swift; sourceTree = "<group>"; };
 		6CDA9EF41C146E32E857190B /* LiveSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSessionView.swift; sourceTree = "<group>"; };
+		7228EE91A8164390464DA56E /* TheoryTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryTabView.swift; sourceTree = "<group>"; };
 		758CB7147E8D62F3B105B928 /* SongsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongsListView.swift; sourceTree = "<group>"; };
 		7D9EC582B30E6D03938B1C25 /* TunerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunerView.swift; sourceTree = "<group>"; };
 		80E5C6942431F959198B9E69 /* ServiceContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceContainer.swift; sourceTree = "<group>"; };
@@ -167,6 +170,7 @@
 		E1F0B6B49F4A646F9767B83D /* SessionReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionReportView.swift; sourceTree = "<group>"; };
 		E5933941B69B8E26C70A5620 /* LibraryHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryHomeView.swift; sourceTree = "<group>"; };
 		E5F6D60A95F0BFCF7EA80B72 /* IdeaRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaRecorderView.swift; sourceTree = "<group>"; };
+		F36A7E7A1BFC985015BD4115 /* RecorderTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecorderTabView.swift; sourceTree = "<group>"; };
 		FA8564D5C7E92BF00E9F5101 /* Measure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Measure.swift; sourceTree = "<group>"; };
 		FAAA4A6DE284C5034F1E5350 /* SimpleSynthThreadSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleSynthThreadSafetyTests.swift; sourceTree = "<group>"; };
 		FC88B51E705FBADBA79E42E1 /* TunerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunerEngine.swift; sourceTree = "<group>"; };
@@ -249,8 +253,10 @@
 				E5933941B69B8E26C70A5620 /* LibraryHomeView.swift */,
 				C42F8174DC28F6D4063D0DA2 /* LickCardsLabsView.swift */,
 				A6D3FB0C395A0DE80B50A92D /* PianoStripView.swift */,
+				F36A7E7A1BFC985015BD4115 /* RecorderTabView.swift */,
 				48CC184E8949F013FC27BD50 /* StaffView.swift */,
 				BEB2081EB632C90A2C1EC9BA /* TheoryLibraryView.swift */,
+				7228EE91A8164390464DA56E /* TheoryTabView.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -569,6 +575,7 @@
 				F047BA5666630C96C0139ED0 /* PracticeSandboxView.swift in Sources */,
 				D5E0403BC013277D7B9C0356 /* PracticeSession.swift in Sources */,
 				27675F0A16DAF14D542B046D /* ProfessorNotesGenerator.swift in Sources */,
+				373D9604B5EF2173936FAB6C /* RecorderTabView.swift in Sources */,
 				4A542C3D8B6DF9AE52B6C043 /* RootTabView.swift in Sources */,
 				2D93C20E9D5A92F9643A4592 /* ServiceContainer.swift in Sources */,
 				7BD307306AE172727F0BF7D1 /* SessionReportView.swift in Sources */,
@@ -588,6 +595,7 @@
 				DDF55EC0515A114F948B8F4B /* TheoryModels.swift in Sources */,
 				BCF22EA1FC5D75460A9DA314 /* TheoryNotationEngine.swift in Sources */,
 				E61AFA8E0E7834645EE35ED9 /* TheoryResolver.swift in Sources */,
+				ABE4EDF321CC8559CBBF088D /* TheoryTabView.swift in Sources */,
 				0E756CA4E03D6EB7767F4E89 /* ToolsHomeView.swift in Sources */,
 				DC78A9B2088FA9BB5A6F9E87 /* TunerEngine.swift in Sources */,
 				A50C0E59E6E4C1EB905FEA09 /* TunerView.swift in Sources */,

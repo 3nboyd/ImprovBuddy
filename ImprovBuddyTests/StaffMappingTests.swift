@@ -35,4 +35,27 @@ final class StaffMappingTests: XCTestCase {
             XCTAssertGreaterThan(steps[index], steps[index - 1])
         }
     }
+
+    func testClefAwareOctaveRecenteringKeepsNotesVisible() throws {
+        guard let lydianDominant = TheoryTestSupport.knowledgeBase().scalesByID["lydian_dominant"] else {
+            throw XCTSkip("Missing lydian dominant scale")
+        }
+
+        for clef in TheoryClef.allCases {
+            var context = TheoryContext.default
+            context.clef = clef
+
+            let notes = notationEngine.spellScale(
+                scale: lydianDominant,
+                context: context,
+                rootPitchClass: 11
+            )
+            let staffNotes = notationEngine.toStaffNotes(notes, clef: clef)
+            let highest = staffNotes.map(\.staffStep).max() ?? 0
+            let lowest = staffNotes.map(\.staffStep).min() ?? 0
+
+            XCTAssertLessThanOrEqual(highest, 8, "Expected visible upper range for \(clef)")
+            XCTAssertGreaterThanOrEqual(lowest, -8, "Expected visible lower range for \(clef)")
+        }
+    }
 }

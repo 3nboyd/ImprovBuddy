@@ -22,14 +22,14 @@ struct RootTabView: View {
                     Label("Tools", systemImage: "metronome")
                 }
 
-            LibraryHomeView()
+            RecorderTabView()
                 .tabItem {
-                    Label("Library", systemImage: "books.vertical")
+                    Label("Recorder", systemImage: "waveform.badge.plus")
                 }
 
-            SettingsView()
+            TheoryTabView()
                 .tabItem {
-                    Label("Settings", systemImage: "gearshape")
+                    Label("Library", systemImage: "books.vertical")
                 }
         }
         .task {

@@ -1,11 +1,25 @@
 import AVFoundation
 import Foundation
 
-@MainActor
+enum AudioEngineError: LocalizedError {
+    case microphonePermissionDenied
+    case noInputRouteAvailable
+
+    var errorDescription: String? {
+        switch self {
+        case .microphonePermissionDenied:
+            return "Microphone permission is required."
+        case .noInputRouteAvailable:
+            return "No microphone input route is currently available."
+        }
+    }
+}
+
 final class AudioEngineManager: ObservableObject {
     @Published private(set) var micPermissionGranted = false
     @Published private(set) var isRunning = false
     @Published private(set) var currentRouteName = ""
+    @Published private(set) var lastErrorMessage: String?
 
     private let eventBus: UnifiedEventBus
     private let analysisQueue = DispatchQueue(label: "com.nbz.improvbuddy.analysis", qos: .userInitiated)
@@ -28,20 +42,33 @@ final class AudioEngineManager: ObservableObject {
         NotificationCenter.default.removeObserver(self)
     }
 
+    @MainActor
     func requestMicrophonePermission() async -> Bool {
-        let session = AVAudioSession.sharedInstance()
-        let granted = await withCheckedContinuation { continuation in
-            session.requestRecordPermission { allowed in
-                continuation.resume(returning: allowed)
-            }
+        let granted = await Self.requestMicrophonePermissionFromSystem()
+        publishOnMain { [weak self] in
+            self?.micPermissionGranted = granted
         }
-
-        micPermissionGranted = granted
         return granted
     }
 
+    @MainActor
     func start(recordAudio: Bool = false) throws {
+        if isRunning {
+            shouldRecordAudio = shouldRecordAudio || recordAudio
+            return
+        }
+
+        if !micPermissionGranted && AVAudioSession.sharedInstance().recordPermission != .granted {
+            publishOnMain { [weak self] in
+                self?.lastErrorMessage = AudioEngineError.microphonePermissionDenied.localizedDescription
+            }
+            throw AudioEngineError.microphonePermissionDenied
+        }
+
         shouldRecordAudio = recordAudio
+        publishOnMain { [weak self] in
+            self?.lastErrorMessage = nil
+        }
 
         try configureAudioSession()
         try setupTap()
@@ -52,15 +79,21 @@ final class AudioEngineManager: ObservableObject {
 
         engine.prepare()
         try engine.start()
-        isRunning = true
+        publishOnMain { [weak self] in
+            self?.isRunning = true
+        }
         updateRouteName()
     }
 
+    @MainActor
     func stop() {
+        guard isRunning else { return }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         recordingFile = nil
-        isRunning = false
+        publishOnMain { [weak self] in
+            self?.isRunning = false
+        }
         ringBuffer.clear()
         onsetDetector.reset()
         pitchDetector?.reset()
@@ -80,6 +113,12 @@ final class AudioEngineManager: ObservableObject {
     private func setupTap() throws {
         let inputNode = engine.inputNode
         let inputFormat = inputNode.inputFormat(forBus: 0)
+        guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
+            publishOnMain { [weak self] in
+                self?.lastErrorMessage = AudioEngineError.noInputRouteAvailable.localizedDescription
+            }
+            throw AudioEngineError.noInputRouteAvailable
+        }
 
         if pitchDetector == nil {
             pitchDetector = PitchDetector(sampleRate: inputFormat.sampleRate)
@@ -164,6 +203,25 @@ final class AudioEngineManager: ObservableObject {
 
     private func updateRouteName() {
         let route = AVAudioSession.sharedInstance().currentRoute
-        currentRouteName = route.inputs.first?.portName ?? route.outputs.first?.portName ?? "Unknown"
+        let routeName = route.inputs.first?.portName ?? route.outputs.first?.portName ?? "Unknown"
+        publishOnMain { [weak self] in
+            self?.currentRouteName = routeName
+        }
+    }
+
+    private nonisolated static func requestMicrophonePermissionFromSystem() async -> Bool {
+        await withCheckedContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { allowed in
+                continuation.resume(returning: allowed)
+            }
+        }
+    }
+
+    private func publishOnMain(_ update: @escaping () -> Void) {
+        if Thread.isMainThread {
+            update()
+            return
+        }
+        DispatchQueue.main.async(execute: update)
     }
 }

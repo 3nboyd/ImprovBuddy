@@ -6,6 +6,7 @@ struct PracticeSandboxView: View {
     @State private var engine: PracticeSandboxEngine?
     @State private var inputMode: InputMode = .both
     @State private var targetBPM: Double = 100
+    @State private var errorText = ""
 
     var body: some View {
         VStack(spacing: 18) {
@@ -51,6 +52,13 @@ struct PracticeSandboxView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
+            if !errorText.isEmpty {
+                Text(errorText)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+
             Spacer()
         }
         .padding()
@@ -72,6 +80,7 @@ struct PracticeSandboxView: View {
         if engine.isRunning {
             engine.stop()
             services.audioManager.stop()
+            errorText = ""
             return
         }
 
@@ -84,13 +93,22 @@ struct PracticeSandboxView: View {
             }
 
             if inputMode == .mic || inputMode == .both {
-                _ = await services.audioManager.requestMicrophonePermission()
-                if services.audioManager.micPermissionGranted {
-                    try? services.audioManager.start(recordAudio: false)
+                let granted = await services.audioManager.requestMicrophonePermission()
+                guard granted else {
+                    errorText = "Microphone permission denied."
+                    return
+                }
+
+                do {
+                    try services.audioManager.start(recordAudio: false)
+                } catch {
+                    errorText = error.localizedDescription
+                    return
                 }
             }
 
             engine.start()
+            errorText = ""
         }
     }
 }

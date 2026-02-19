@@ -4,6 +4,7 @@ struct BPMDetectorView: View {
     @EnvironmentObject private var services: ServiceContainer
 
     @State private var listening = false
+    @State private var errorText = ""
 
     var body: some View {
         VStack(spacing: 18) {
@@ -30,17 +31,33 @@ struct BPMDetectorView: View {
                     if listening {
                         services.audioManager.stop()
                         listening = false
+                        errorText = ""
                     } else {
                         services.midiManager.start()
-                        _ = await services.audioManager.requestMicrophonePermission()
-                        if services.audioManager.micPermissionGranted {
-                            try? services.audioManager.start(recordAudio: false)
+                        let granted = await services.audioManager.requestMicrophonePermission()
+                        guard granted else {
+                            errorText = "Microphone permission denied."
+                            return
                         }
-                        listening = true
+
+                        do {
+                            try services.audioManager.start(recordAudio: false)
+                            listening = true
+                            errorText = ""
+                        } catch {
+                            errorText = error.localizedDescription
+                        }
                     }
                 }
             }
             .buttonStyle(.bordered)
+
+            if !errorText.isEmpty {
+                Text(errorText)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
 
             Button("Reset") {
                 services.bpmDetector.reset()

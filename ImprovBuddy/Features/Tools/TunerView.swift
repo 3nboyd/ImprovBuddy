@@ -4,6 +4,7 @@ struct TunerView: View {
     @EnvironmentObject private var services: ServiceContainer
 
     @State private var isListening = false
+    @State private var errorText = ""
 
     var body: some View {
         VStack(spacing: 20) {
@@ -34,17 +35,33 @@ struct TunerView: View {
                     if isListening {
                         services.audioManager.stop()
                         isListening = false
+                        errorText = ""
                     } else {
                         services.midiManager.start()
-                        _ = await services.audioManager.requestMicrophonePermission()
-                        if services.audioManager.micPermissionGranted {
-                            try? services.audioManager.start(recordAudio: false)
+                        let granted = await services.audioManager.requestMicrophonePermission()
+                        guard granted else {
+                            errorText = "Microphone permission denied."
+                            return
                         }
-                        isListening = true
+
+                        do {
+                            try services.audioManager.start(recordAudio: false)
+                            isListening = true
+                            errorText = ""
+                        } catch {
+                            errorText = error.localizedDescription
+                        }
                     }
                 }
             }
             .buttonStyle(.borderedProminent)
+
+            if !errorText.isEmpty {
+                Text(errorText)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
 
             Spacer()
         }

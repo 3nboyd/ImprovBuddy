@@ -86,7 +86,7 @@ struct TheoryNotationEngine {
             ? degreeSteps
             : Array(0..<intervals.count)
 
-        return intervals.enumerated().map { index, interval in
+        let spelled = intervals.enumerated().map { index, interval in
             let degreeStep = normalizedSteps[index]
             let letterIndex = (rootLetterIndex + degreeStep) % letters.count
             let letter = letters[letterIndex]
@@ -101,6 +101,52 @@ struct TheoryNotationEngine {
             let noteName = "\(letter)\(accidental)"
             return SpelledNote(name: noteName, midi: midi, pitchClass: targetPC, accidental: accidental)
         }
+
+        return rebalanceOctaveForClef(spelled, clef: context.clef)
+    }
+
+    private func rebalanceOctaveForClef(_ notes: [SpelledNote], clef: TheoryClef) -> [SpelledNote] {
+        guard !notes.isEmpty else { return notes }
+
+        var adjusted = notes
+        var attempts = 0
+
+        while attempts < 6 {
+            let steps = adjusted.map { staffStep(for: $0, clef: clef) }
+            guard let minStep = steps.min(), let maxStep = steps.max() else {
+                break
+            }
+
+            if maxStep > 8 {
+                adjusted = adjusted.map {
+                    SpelledNote(
+                        name: $0.name,
+                        midi: $0.midi - 12,
+                        pitchClass: $0.pitchClass,
+                        accidental: $0.accidental
+                    )
+                }
+                attempts += 1
+                continue
+            }
+
+            if minStep < -8 {
+                adjusted = adjusted.map {
+                    SpelledNote(
+                        name: $0.name,
+                        midi: $0.midi + 12,
+                        pitchClass: $0.pitchClass,
+                        accidental: $0.accidental
+                    )
+                }
+                attempts += 1
+                continue
+            }
+
+            break
+        }
+
+        return adjusted
     }
 
     private func accidentalDistance(from naturalPC: Int, to targetPC: Int) -> Int {

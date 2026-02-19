@@ -21,6 +21,16 @@ struct ToolsHomeView: View {
                 }
             }
             .navigationTitle("Tools")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
         }
     }
 }
