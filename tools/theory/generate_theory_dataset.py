@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+import datetime as dt
+import hashlib
+import json
+from pathlib import Path
+
+SCALES = [
+    {"id": "ionian", "name": "Ionian", "family": "Major Modes", "intervals": [0,2,4,5,7,9,11], "degreeSteps": [0,1,2,3,4,5,6], "tier": "core", "tags": ["major","diatonic"], "summary": "Primary major-key sound."},
+    {"id": "dorian", "name": "Dorian", "family": "Major Modes", "intervals": [0,2,3,5,7,9,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "core", "tags": ["minor","ii"], "summary": "Default minor-7 color in jazz."},
+    {"id": "phrygian", "name": "Phrygian", "family": "Major Modes", "intervals": [0,1,3,5,7,8,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "extended", "tags": ["minor"], "summary": "Dark minor color with b2."},
+    {"id": "lydian", "name": "Lydian", "family": "Major Modes", "intervals": [0,2,4,6,7,9,11], "degreeSteps": [0,1,2,3,4,5,6], "tier": "core", "tags": ["major","bright"], "summary": "Major with #11 for tonic major."},
+    {"id": "mixolydian", "name": "Mixolydian", "family": "Major Modes", "intervals": [0,2,4,5,7,9,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "core", "tags": ["dominant"], "summary": "Primary dominant scale."},
+    {"id": "aeolian", "name": "Aeolian", "family": "Major Modes", "intervals": [0,2,3,5,7,8,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "extended", "tags": ["minor"], "summary": "Natural minor option."},
+    {"id": "locrian", "name": "Locrian", "family": "Major Modes", "intervals": [0,1,3,5,6,8,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "core", "tags": ["half-diminished"], "summary": "Default m7b5 color."},
+    {"id": "melodic_minor", "name": "Melodic Minor", "family": "Melodic Minor", "intervals": [0,2,3,5,7,9,11], "degreeSteps": [0,1,2,3,4,5,6], "tier": "extended", "tags": ["minor-major"], "summary": "Modern minor tonic sonority."},
+    {"id": "lydian_dominant", "name": "Lydian Dominant", "family": "Melodic Minor", "intervals": [0,2,4,6,7,9,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "core", "tags": ["dominant","#11"], "summary": "Dominant with #11 over non-resolving V chords."},
+    {"id": "mixolydian_b6", "name": "Mixolydian b6", "family": "Melodic Minor", "intervals": [0,2,4,5,7,8,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "extended", "tags": ["dominant"], "summary": "Dominant with b13 focus."},
+    {"id": "locrian_n2", "name": "Locrian #2", "family": "Melodic Minor", "intervals": [0,2,3,5,6,8,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "core", "tags": ["half-diminished"], "summary": "Preferred m7b5 in minor ii-V."},
+    {"id": "altered", "name": "Altered", "family": "Melodic Minor", "intervals": [0,1,3,4,6,8,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "core", "tags": ["dominant","altered"], "summary": "Full altered dominant tension set."},
+    {"id": "harmonic_minor", "name": "Harmonic Minor", "family": "Harmonic Minor", "intervals": [0,2,3,5,7,8,11], "degreeSteps": [0,1,2,3,4,5,6], "tier": "extended", "tags": ["minor"], "summary": "Minor with leading tone."},
+    {"id": "phrygian_dominant", "name": "Phrygian Dominant", "family": "Harmonic Minor", "intervals": [0,1,4,5,7,8,10], "degreeSteps": [0,1,2,3,4,5,6], "tier": "extended", "tags": ["dominant","b9"], "summary": "Dominant color from harmonic minor mode 5."},
+    {"id": "harmonic_major", "name": "Harmonic Major", "family": "Harmonic Major", "intervals": [0,2,4,5,7,8,11], "degreeSteps": [0,1,2,3,4,5,6], "tier": "advanced", "tags": ["major"], "summary": "Major with b6 color."},
+    {"id": "whole_tone", "name": "Whole Tone", "family": "Symmetric", "intervals": [0,2,4,6,8,10], "degreeSteps": [0,1,2,3,4,5], "tier": "extended", "tags": ["dominant","augmented"], "summary": "Symmetric dominant/augmented color."},
+    {"id": "dim_hw", "name": "Diminished Half-Whole", "family": "Symmetric", "intervals": [0,1,3,4,6,7,9,10], "degreeSteps": [0,1,2,3,4,5,6,7], "tier": "extended", "tags": ["dominant","diminished"], "summary": "Dominant diminished collection."},
+    {"id": "dim_wh", "name": "Diminished Whole-Half", "family": "Symmetric", "intervals": [0,2,3,5,6,8,9,11], "degreeSteps": [0,1,2,3,4,5,6,7], "tier": "extended", "tags": ["diminished"], "summary": "Fully diminished scale."},
+    {"id": "major_pent", "name": "Major Pentatonic", "family": "Pentatonic", "intervals": [0,2,4,7,9], "degreeSteps": [0,1,2,4,5], "tier": "core", "tags": ["major","pentatonic"], "summary": "Simple major melodic vocabulary."},
+    {"id": "minor_pent", "name": "Minor Pentatonic", "family": "Pentatonic", "intervals": [0,3,5,7,10], "degreeSteps": [0,2,3,4,6], "tier": "core", "tags": ["minor","pentatonic"], "summary": "Minor pentatonic vocabulary."},
+    {"id": "blues", "name": "Blues", "family": "Blues", "intervals": [0,3,5,6,7,10], "degreeSteps": [0,2,3,4,5,6], "tier": "core", "tags": ["blues"], "summary": "Core blues note set."},
+    {"id": "bebop_dom", "name": "Bebop Dominant", "family": "Bebop", "intervals": [0,2,4,5,7,9,10,11], "degreeSteps": [0,1,2,3,4,5,6,7], "tier": "advanced", "tags": ["dominant","bebop"], "summary": "Mixolydian with major 7 passing tone."},
+    {"id": "bebop_maj", "name": "Bebop Major", "family": "Bebop", "intervals": [0,2,4,5,7,8,9,11], "degreeSteps": [0,1,2,3,4,5,6,7], "tier": "advanced", "tags": ["major","bebop"], "summary": "Ionian with b6 passing tone."},
+    {"id": "bebop_dorian", "name": "Bebop Dorian", "family": "Bebop", "intervals": [0,2,3,4,5,7,9,10], "degreeSteps": [0,1,2,3,4,5,6,7], "tier": "advanced", "tags": ["minor","bebop"], "summary": "Dorian with major 3 passing tone."}
+]
+
+ARPEGGIOS = [
+    {"id": "maj_tri_arp", "name": "Major Triad", "family": "Triads", "intervals": [0,4,7], "degreeSteps": [0,2,4], "tier": "core", "tags": ["triad"], "summary": "1-3-5."},
+    {"id": "min_tri_arp", "name": "Minor Triad", "family": "Triads", "intervals": [0,3,7], "degreeSteps": [0,2,4], "tier": "core", "tags": ["triad"], "summary": "1-b3-5."},
+    {"id": "dim_tri_arp", "name": "Diminished Triad", "family": "Triads", "intervals": [0,3,6], "degreeSteps": [0,2,4], "tier": "core", "tags": ["triad"], "summary": "1-b3-b5."},
+    {"id": "aug_tri_arp", "name": "Augmented Triad", "family": "Triads", "intervals": [0,4,8], "degreeSteps": [0,2,4], "tier": "extended", "tags": ["triad"], "summary": "1-3-#5."},
+    {"id": "maj7_arp", "name": "Maj7 Arpeggio", "family": "Sevenths", "intervals": [0,4,7,11], "degreeSteps": [0,2,4,6], "tier": "core", "tags": ["major"], "summary": "1-3-5-7."},
+    {"id": "maj6_arp", "name": "Maj6 Arpeggio", "family": "Sevenths", "intervals": [0,4,7,9], "degreeSteps": [0,2,4,5], "tier": "core", "tags": ["major"], "summary": "1-3-5-6."},
+    {"id": "min7_arp", "name": "Min7 Arpeggio", "family": "Sevenths", "intervals": [0,3,7,10], "degreeSteps": [0,2,4,6], "tier": "core", "tags": ["minor"], "summary": "1-b3-5-b7."},
+    {"id": "min6_arp", "name": "Min6 Arpeggio", "family": "Sevenths", "intervals": [0,3,7,9], "degreeSteps": [0,2,4,5], "tier": "extended", "tags": ["minor"], "summary": "1-b3-5-6."},
+    {"id": "dom7_arp", "name": "Dom7 Arpeggio", "family": "Sevenths", "intervals": [0,4,7,10], "degreeSteps": [0,2,4,6], "tier": "core", "tags": ["dominant"], "summary": "1-3-5-b7."},
+    {"id": "minmaj7_arp", "name": "MinMaj7 Arpeggio", "family": "Sevenths", "intervals": [0,3,7,11], "degreeSteps": [0,2,4,6], "tier": "extended", "tags": ["minor-major"], "summary": "1-b3-5-7."},
+    {"id": "m7b5_arp", "name": "Half-Diminished Arpeggio", "family": "Sevenths", "intervals": [0,3,6,10], "degreeSteps": [0,2,4,6], "tier": "core", "tags": ["half-diminished"], "summary": "1-b3-b5-b7."},
+    {"id": "dim7_arp", "name": "Diminished 7 Arpeggio", "family": "Sevenths", "intervals": [0,3,6,9], "degreeSteps": [0,2,4,6], "tier": "extended", "tags": ["diminished"], "summary": "1-b3-b5-bb7."},
+    {"id": "dom13_arp", "name": "Dom13 Skeleton", "family": "Extended", "intervals": [0,4,10,2,9], "degreeSteps": [0,2,6,1,5], "tier": "extended", "tags": ["dominant"], "summary": "1-3-b7-9-13."},
+    {"id": "guide_major", "name": "Guide Tones (Maj7)", "family": "Guide Tones", "intervals": [4,11], "degreeSteps": [2,6], "tier": "core", "tags": ["guide-tones"], "summary": "3 and 7."},
+    {"id": "guide_minor", "name": "Guide Tones (Min7)", "family": "Guide Tones", "intervals": [3,10], "degreeSteps": [2,6], "tier": "core", "tags": ["guide-tones"], "summary": "b3 and b7."},
+    {"id": "guide_dom", "name": "Guide Tones (Dom7)", "family": "Guide Tones", "intervals": [4,10], "degreeSteps": [2,6], "tier": "core", "tags": ["guide-tones"], "summary": "3 and b7."},
+    {"id": "upper_dom", "name": "Upper Structure Triad", "family": "Upper Structures", "intervals": [2,6,9], "degreeSteps": [1,3,5], "tier": "advanced", "tags": ["dominant"], "summary": "9-#11-13 flavor."}
+]
+
+CHORDS = [
+    {"id": "maj7", "name": "Maj7", "symbols": ["maj7","M7"], "quality": "major", "intervals": [0,4,7,11], "degreeSteps": [0,2,4,6], "tier": "core", "functionHints": ["tonic"], "family": "Major", "summary": "Tonic major sound."},
+    {"id": "maj6", "name": "Maj6", "symbols": ["6"], "quality": "major", "intervals": [0,4,7,9], "degreeSteps": [0,2,4,5], "tier": "core", "functionHints": ["tonic"], "family": "Major", "summary": "Major with 6 color."},
+    {"id": "maj_tri", "name": "Major Triad", "symbols": ["maj",""], "quality": "major", "intervals": [0,4,7], "degreeSteps": [0,2,4], "tier": "core", "functionHints": ["tonic"], "family": "Major", "summary": "Triadic major."},
+    {"id": "min7", "name": "Min7", "symbols": ["m7","-7","min7"], "quality": "minor", "intervals": [0,3,7,10], "degreeSteps": [0,2,4,6], "tier": "core", "functionHints": ["predominant","tonic"], "family": "Minor", "summary": "Minor seventh."},
+    {"id": "min6", "name": "Min6", "symbols": ["m6","min6"], "quality": "minor", "intervals": [0,3,7,9], "degreeSteps": [0,2,4,5], "tier": "extended", "functionHints": ["tonic"], "family": "Minor", "summary": "Minor six."},
+    {"id": "min_tri", "name": "Minor Triad", "symbols": ["m","min","-"], "quality": "minor", "intervals": [0,3,7], "degreeSteps": [0,2,4], "tier": "core", "functionHints": ["tonic","predominant"], "family": "Minor", "summary": "Triadic minor."},
+    {"id": "min_maj7", "name": "MinMaj7", "symbols": ["mMaj7","minMaj7"], "quality": "minor", "intervals": [0,3,7,11], "degreeSteps": [0,2,4,6], "tier": "extended", "functionHints": ["tonic"], "family": "Minor", "summary": "Minor tonic with leading tone."},
+    {"id": "dom7", "name": "Dom7", "symbols": ["7"], "quality": "dominant", "intervals": [0,4,7,10], "degreeSteps": [0,2,4,6], "tier": "core", "functionHints": ["dominant"], "family": "Dominant", "summary": "Primary dominant."},
+    {"id": "dom7alt", "name": "Dom7 Alt", "symbols": ["7alt","7b9","7#9","7#11","7b13"], "quality": "dominant", "intervals": [0,4,7,10], "degreeSteps": [0,2,4,6], "tier": "core", "functionHints": ["alteredDominant","dominant"], "family": "Dominant", "summary": "Altered dominant."},
+    {"id": "dom7sus", "name": "Dom7sus", "symbols": ["7sus","sus7","7sus4"], "quality": "suspended", "intervals": [0,5,7,10], "degreeSteps": [0,3,4,6], "tier": "extended", "functionHints": ["dominant"], "family": "Dominant", "summary": "Suspended dominant."},
+    {"id": "blues_dom", "name": "Blues Dominant", "symbols": ["7blues"], "quality": "dominant", "intervals": [0,4,7,10], "degreeSteps": [0,2,4,6], "tier": "extended", "functionHints": ["bluesDominant"], "family": "Blues", "summary": "Dominant in blues context."},
+    {"id": "m7b5", "name": "m7b5", "symbols": ["m7b5","ø7"], "quality": "halfDiminished", "intervals": [0,3,6,10], "degreeSteps": [0,2,4,6], "tier": "core", "functionHints": ["predominant"], "family": "Diminished", "summary": "Half-diminished quality."},
+    {"id": "dim7", "name": "dim7", "symbols": ["dim7","o7","°7"], "quality": "diminished", "intervals": [0,3,6,9], "degreeSteps": [0,2,4,6], "tier": "extended", "functionHints": ["passingDiminished"], "family": "Diminished", "summary": "Fully diminished seventh."},
+    {"id": "dim_tri", "name": "Dim Triad", "symbols": ["dim","o","°"], "quality": "diminished", "intervals": [0,3,6], "degreeSteps": [0,2,4], "tier": "core", "functionHints": ["passingDiminished"], "family": "Diminished", "summary": "Diminished triad."},
+    {"id": "aug_maj7", "name": "AugMaj7", "symbols": ["augmaj7","+maj7"], "quality": "augmented", "intervals": [0,4,8,11], "degreeSteps": [0,2,4,6], "tier": "advanced", "functionHints": ["modalInterchange"], "family": "Augmented", "summary": "Major seven with #5."},
+    {"id": "aug_tri", "name": "Aug Triad", "symbols": ["aug","+"], "quality": "augmented", "intervals": [0,4,8], "degreeSteps": [0,2,4], "tier": "extended", "functionHints": ["modalInterchange"], "family": "Augmented", "summary": "Augmented triad."}
+]
+
+GUIDE_TONES = [
+    {"id": "gt_major", "chordID": "maj7", "intervals": [4,11], "description": "Land on 3 and 7 on strong beats."},
+    {"id": "gt_minor", "chordID": "min7", "intervals": [3,10], "description": "Use b3 and b7 to define the quality."},
+    {"id": "gt_dom", "chordID": "dom7", "intervals": [4,10], "description": "Resolve 3 and b7 by step across changes."},
+    {"id": "gt_m7b5", "chordID": "m7b5", "intervals": [3,10], "description": "Use b3 and b7 as anchors into V7alt."},
+    {"id": "gt_dim7", "chordID": "dim7", "intervals": [3,9], "description": "Highlight symmetric guide-tone movement."}
+]
+
+AVOID_TONES = [
+    {"id": "av_ionian_11", "scaleID": "ionian", "intervals": [5], "description": "Natural 11 can clash over maj7; treat as passing."},
+    {"id": "av_mixolydian_11", "scaleID": "mixolydian", "intervals": [5], "description": "Natural 11 may rub against 3 on dominant."},
+    {"id": "av_locrian_b2", "scaleID": "locrian", "intervals": [1], "description": "b2 is strong tension; place with intent."},
+    {"id": "av_altered_none", "scaleID": "altered", "intervals": [], "description": "All tones are tension colors; resolve deliberately."}
+]
+
+VOICE_LEADING = [
+    {"id": "vl_ii_v", "fromChordID": "min7", "toChordID": "dom7", "description": "Move b7 of ii down to 3 of V."},
+    {"id": "vl_v_i", "fromChordID": "dom7", "toChordID": "maj7", "description": "Resolve 3->1 or b7->3 at cadence."},
+    {"id": "vl_alt_to_i", "fromChordID": "dom7alt", "toChordID": "maj7", "description": "Resolve altered tensions by semitone into chord tones."},
+    {"id": "vl_halfdim_to_alt", "fromChordID": "m7b5", "toChordID": "dom7alt", "description": "Keep stepwise motion through minor ii-V."},
+    {"id": "vl_dim_pass", "fromChordID": "dim7", "toChordID": None, "description": "Treat as passing sonority into nearest dominant or tonic."}
+]
+
+RECOMMENDATIONS = [
+    {"id": "rec_maj7_core", "chordID": "maj7", "primaryScaleID": "ionian", "alternativeScaleIDs": ["lydian"], "arpeggioIDs": ["maj7_arp", "guide_major"], "guideToneRuleID": "gt_major", "avoidToneRuleIDs": ["av_ionian_11"], "voiceLeadingRuleIDs": ["vl_v_i"], "tensionLevel": 1, "relevance": 100, "tier": "core", "functionTag": "tonic", "recommendedDrillIDs": ["chord_tone_anchors", "guide_tones_only"], "rationale": "Start with stable major color, then add #11 via Lydian."},
+    {"id": "rec_maj6_core", "chordID": "maj6", "primaryScaleID": "major_pent", "alternativeScaleIDs": ["ionian"], "arpeggioIDs": ["maj6_arp", "maj_tri_arp"], "guideToneRuleID": "gt_major", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": ["vl_v_i"], "tensionLevel": 0, "relevance": 95, "tier": "core", "functionTag": "tonic", "recommendedDrillIDs": ["chord_tone_anchors"], "rationale": "Pentatonic language keeps the sonority clear and melodic."},
+    {"id": "rec_majtri_core", "chordID": "maj_tri", "primaryScaleID": "major_pent", "alternativeScaleIDs": ["ionian"], "arpeggioIDs": ["maj_tri_arp"], "guideToneRuleID": "gt_major", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": [], "tensionLevel": 0, "relevance": 90, "tier": "core", "functionTag": "tonic", "recommendedDrillIDs": ["chord_tone_anchors"], "rationale": "Triad-first approach for melodic clarity."},
+    {"id": "rec_min7_core", "chordID": "min7", "primaryScaleID": "dorian", "alternativeScaleIDs": ["aeolian", "bebop_dorian"], "arpeggioIDs": ["min7_arp", "guide_minor"], "guideToneRuleID": "gt_minor", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": ["vl_ii_v"], "tensionLevel": 1, "relevance": 100, "tier": "core", "functionTag": "predominant", "recommendedDrillIDs": ["guide_tones_only", "chord_tone_anchors"], "rationale": "Dorian is the default ii chord sound with natural 6 color."},
+    {"id": "rec_min6_ext", "chordID": "min6", "primaryScaleID": "melodic_minor", "alternativeScaleIDs": ["dorian"], "arpeggioIDs": ["min6_arp", "minmaj7_arp"], "guideToneRuleID": "gt_minor", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": [], "tensionLevel": 2, "relevance": 82, "tier": "extended", "functionTag": "tonic", "recommendedDrillIDs": ["upper_extensions_focus"], "rationale": "Minor tonic in modern jazz often leans melodic minor."},
+    {"id": "rec_mintri_core", "chordID": "min_tri", "primaryScaleID": "minor_pent", "alternativeScaleIDs": ["dorian"], "arpeggioIDs": ["min_tri_arp"], "guideToneRuleID": "gt_minor", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": [], "tensionLevel": 0, "relevance": 88, "tier": "core", "functionTag": "tonic", "recommendedDrillIDs": ["rhythm_only_chorus"], "rationale": "Minor pentatonic provides clean phrase vocabulary."},
+    {"id": "rec_minmaj7_ext", "chordID": "min_maj7", "primaryScaleID": "melodic_minor", "alternativeScaleIDs": ["harmonic_minor"], "arpeggioIDs": ["minmaj7_arp"], "guideToneRuleID": "gt_minor", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": [], "tensionLevel": 2, "relevance": 86, "tier": "extended", "functionTag": "tonic", "recommendedDrillIDs": ["upper_extensions_focus"], "rationale": "Use melodic minor as default, harmonic minor as darker alternative."},
+    {"id": "rec_dom7_core", "chordID": "dom7", "primaryScaleID": "mixolydian", "alternativeScaleIDs": ["lydian_dominant", "bebop_dom"], "arpeggioIDs": ["dom7_arp", "guide_dom", "dom13_arp"], "guideToneRuleID": "gt_dom", "avoidToneRuleIDs": ["av_mixolydian_11"], "voiceLeadingRuleIDs": ["vl_v_i"], "tensionLevel": 1, "relevance": 100, "tier": "core", "functionTag": "dominant", "recommendedDrillIDs": ["upper_extensions_focus", "guide_tones_only"], "rationale": "Mixolydian base with optional #11 and bebop chromaticism."},
+    {"id": "rec_dom7alt_core", "chordID": "dom7alt", "primaryScaleID": "altered", "alternativeScaleIDs": ["dim_hw", "whole_tone"], "arpeggioIDs": ["dom7_arp", "upper_dom"], "guideToneRuleID": "gt_dom", "avoidToneRuleIDs": ["av_altered_none"], "voiceLeadingRuleIDs": ["vl_alt_to_i"], "tensionLevel": 3, "relevance": 100, "tier": "core", "functionTag": "alteredDominant", "recommendedDrillIDs": ["upper_extensions_focus", "lay_back_drill"], "rationale": "Treat all altered tensions as directed motion into resolution."},
+    {"id": "rec_dom7sus_ext", "chordID": "dom7sus", "primaryScaleID": "mixolydian", "alternativeScaleIDs": ["dorian", "lydian_dominant"], "arpeggioIDs": ["dom7_arp"], "guideToneRuleID": "gt_dom", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": ["vl_v_i"], "tensionLevel": 1, "relevance": 84, "tier": "extended", "functionTag": "dominant", "recommendedDrillIDs": ["chord_tone_anchors"], "rationale": "Suspend then resolve into 3rd for shape."},
+    {"id": "rec_blues_dom_core", "chordID": "blues_dom", "primaryScaleID": "blues", "alternativeScaleIDs": ["mixolydian", "minor_pent"], "arpeggioIDs": ["dom7_arp"], "guideToneRuleID": "gt_dom", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": [], "tensionLevel": 1, "relevance": 92, "tier": "core", "functionTag": "bluesDominant", "recommendedDrillIDs": ["rhythm_only_chorus"], "rationale": "Blend blues language with dominant guide tones."},
+    {"id": "rec_m7b5_core", "chordID": "m7b5", "primaryScaleID": "locrian", "alternativeScaleIDs": ["locrian_n2"], "arpeggioIDs": ["m7b5_arp"], "guideToneRuleID": "gt_m7b5", "avoidToneRuleIDs": ["av_locrian_b2"], "voiceLeadingRuleIDs": ["vl_halfdim_to_alt"], "tensionLevel": 2, "relevance": 100, "tier": "core", "functionTag": "predominant", "recommendedDrillIDs": ["guide_tones_only", "upper_extensions_focus"], "rationale": "Use Locrian as base, Locrian #2 for minor ii-V clarity."},
+    {"id": "rec_dim7_ext", "chordID": "dim7", "primaryScaleID": "dim_wh", "alternativeScaleIDs": ["dim_hw"], "arpeggioIDs": ["dim7_arp"], "guideToneRuleID": "gt_dim7", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": ["vl_dim_pass"], "tensionLevel": 2, "relevance": 87, "tier": "extended", "functionTag": "passingDiminished", "recommendedDrillIDs": ["guide_tones_only"], "rationale": "Exploit symmetric movement and passing resolution."},
+    {"id": "rec_dimtri_core", "chordID": "dim_tri", "primaryScaleID": "dim_wh", "alternativeScaleIDs": ["locrian"], "arpeggioIDs": ["dim_tri_arp"], "guideToneRuleID": "gt_dim7", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": ["vl_dim_pass"], "tensionLevel": 2, "relevance": 78, "tier": "core", "functionTag": "passingDiminished", "recommendedDrillIDs": ["guide_tones_only"], "rationale": "Treat as a passing diminished event."},
+    {"id": "rec_augmaj7_adv", "chordID": "aug_maj7", "primaryScaleID": "whole_tone", "alternativeScaleIDs": ["harmonic_major"], "arpeggioIDs": ["aug_tri_arp", "maj7_arp"], "guideToneRuleID": "gt_major", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": [], "tensionLevel": 3, "relevance": 72, "tier": "advanced", "functionTag": "modalInterchange", "recommendedDrillIDs": ["upper_extensions_focus"], "rationale": "Whole-tone and harmonic-major options for augmented tonic color."},
+    {"id": "rec_augtri_ext", "chordID": "aug_tri", "primaryScaleID": "whole_tone", "alternativeScaleIDs": ["lydian_dominant"], "arpeggioIDs": ["aug_tri_arp"], "guideToneRuleID": "gt_dom", "avoidToneRuleIDs": [], "voiceLeadingRuleIDs": [], "tensionLevel": 3, "relevance": 74, "tier": "extended", "functionTag": "modalInterchange", "recommendedDrillIDs": ["upper_extensions_focus"], "rationale": "Augmented triad lines map naturally to whole-tone symmetry."}
+]
+
+dataset = {
+    "source": "MIT seed + curated jazz overlay",
+    "scales": SCALES,
+    "arpeggios": ARPEGGIOS,
+    "chords": CHORDS,
+    "recommendations": RECOMMENDATIONS,
+    "guideToneRules": GUIDE_TONES,
+    "avoidToneRules": AVOID_TONES,
+    "voiceLeadingRules": VOICE_LEADING,
+}
+
+payload = json.dumps(dataset, sort_keys=True, separators=(",", ":")).encode("utf-8")
+checksum = hashlib.sha256(payload).hexdigest()
+
+envelope = {
+    "schemaVersion": 1,
+    "checksumSHA256": checksum,
+    "generatedAt": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+    "dataset": dataset,
+}
+
+repo_root = Path(__file__).resolve().parents[2]
+out_path = repo_root / "ImprovBuddy" / "Resources" / "theory_library_v1.json"
+out_path.parent.mkdir(parents=True, exist_ok=True)
+out_path.write_text(json.dumps(envelope, indent=2) + "\n", encoding="utf-8")
+
+print(f"Wrote {out_path}")
+print(f"checksum={checksum}")

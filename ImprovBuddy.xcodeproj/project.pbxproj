@@ -1,0 +1,873 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0E756CA4E03D6EB7767F4E89 /* ToolsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A3588FF6C12C4719EDD238 /* ToolsHomeView.swift */; };
+		10681448CA027E0CBF5AFA2C /* CoachPromptGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24D922444B946F18AE7B4D4E /* CoachPromptGenerator.swift */; };
+		1305F6502A4C5D336800592B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCB52AFEA2CE30598E18C89 /* SettingsView.swift */; };
+		1315490D1E549F2F810C29EA /* Chord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28CA522C5C9C959DFE7694AE /* Chord.swift */; };
+		1B22652AAFD46A8C7A797F81 /* CoachSessionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E058845618D658A959418017 /* CoachSessionEngine.swift */; };
+		23820380CE4C423AB6143F82 /* FormPositionTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60A4C699C2D3C804495C58C /* FormPositionTracker.swift */; };
+		25F891B048C0AF2B87C60608 /* ChordScaleMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5751D21D4E0E6288790AD3D /* ChordScaleMappingTests.swift */; };
+		27675F0A16DAF14D542B046D /* ProfessorNotesGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60138B7C53FB98A68971D996 /* ProfessorNotesGenerator.swift */; };
+		2A0620D6921A33650F95BBA8 /* ChordParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53332E849D3B2626762B9D9E /* ChordParserTests.swift */; };
+		2C5C263D0FDAF9F68CDDC4DB /* CoachHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3754708A7A60391ECB1FF8AE /* CoachHomeView.swift */; };
+		2D93C20E9D5A92F9643A4592 /* ServiceContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E5C6942431F959198B9E69 /* ServiceContainer.swift */; };
+		2F6199CF751944F20D41D44C /* SimpleSynthThreadSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAA4A6DE284C5034F1E5350 /* SimpleSynthThreadSafetyTests.swift */; };
+		2F9AB14A8F61DA0296EA634D /* LickCardsLabsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C42F8174DC28F6D4063D0DA2 /* LickCardsLabsView.swift */; };
+		3D0220E2B37A4E0974738EA5 /* theory_library_v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 9468BE309757D3BFBD3DCA30 /* theory_library_v1.json */; };
+		413670266BF4F2ED95D12303 /* AudioEngineManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0EEAB4F1E3A7E067E8C0D6 /* AudioEngineManager.swift */; };
+		43059DF61DA3B857C7EA90AA /* MetronomeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE491D95B870F7F37484A485 /* MetronomeEngine.swift */; };
+		43517EC518D03B132D9537B4 /* MetronomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC60076E53DB37D0D8151CF5 /* MetronomeView.swift */; };
+		444A3697BD1F8BB795FF792E /* TempoAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12876EDA5BD68B8BD2AF0A9 /* TempoAnalyzer.swift */; };
+		498CA8CC88909297CC542E2E /* TheoryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FCC89FD49D938669DAF9C0 /* TheoryEntry.swift */; };
+		4A542C3D8B6DF9AE52B6C043 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9557E4FE6C1C2581120960 /* RootTabView.swift */; };
+		4BEF429CA4DBEEAFC3C1EF8D /* Measure.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA8564D5C7E92BF00E9F5101 /* Measure.swift */; };
+		4D4720498D54BA95299E61E1 /* PracticeSandboxEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D425B0FDADC592E304D1D139 /* PracticeSandboxEngine.swift */; };
+		5A07052804C7B8DB9D646F25 /* DebugTestLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C62C4537B3D4E7F4115677BA /* DebugTestLabView.swift */; };
+		5D1E5303C8F97CF170666F01 /* TheoryKnowledgeBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A3F3B0BB2C5A2391C36308 /* TheoryKnowledgeBase.swift */; };
+		6185EFE72735573ABE8C4084 /* TranspositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3847618FB5408C46D5B5EBC3 /* TranspositionTests.swift */; };
+		64D91CDDE423A8766DAD3499 /* OnsetDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 906F23BCCB650B45D56C7E21 /* OnsetDetector.swift */; };
+		663F7191DE70C620047720E9 /* TextChartImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F9DBA5E9305AB90A15B044 /* TextChartImportView.swift */; };
+		6A8650ACE0B09F3E42920B8B /* TheoryTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA82BFBD2F6F5047F7EA6C3 /* TheoryTestSupport.swift */; };
+		6D8819DD75A023B305333A0A /* TheoryLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB2081EB632C90A2C1EC9BA /* TheoryLibraryView.swift */; };
+		73759D4B9F70D7BFF2C41E51 /* HarmonyAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C0DF46FA9F49A5AC090D58 /* HarmonyAnalyzer.swift */; };
+		763E1F533085CF2960ADF887 /* BPMDetectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 670B3AA71070CD25E6F358F1 /* BPMDetectorView.swift */; };
+		783A473D5F0E869AA60FDD5E /* InputEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AC7B183ABB061B88147FED2 /* InputEvents.swift */; };
+		79F86E43E64FD78DC007E9FD /* TheoryDatasetLoadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB9B602CC6E742621D02FB6 /* TheoryDatasetLoadTests.swift */; };
+		7BD307306AE172727F0BF7D1 /* SessionReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F0B6B49F4A646F9767B83D /* SessionReportView.swift */; };
+		7FE87EDA9DCA863243476E84 /* BPMDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D92D6C9A510A525DEC2BBBD8 /* BPMDetector.swift */; };
+		84C5764F95489FAE9343B553 /* StaffMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432DEF0B65BDABD6F96CFD60 /* StaffMappingTests.swift */; };
+		8603869BA71D707B12D3CF07 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC790468805CFD70725EB7C1 /* HelpView.swift */; };
+		880E66114E1BB93C69C62762 /* UnifiedEventBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD973384E73FF7084F658BD5 /* UnifiedEventBus.swift */; };
+		8AE3F55B1557C808C6A368DC /* SimpleSynth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C46E2043FA981BCE397F1FB /* SimpleSynth.swift */; };
+		8B8BAC8C707BB4403CB8D6F3 /* Song.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5154439730CD774A602328F /* Song.swift */; };
+		8EEC3DA3CDF384A95627E81B /* PitchDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C11BF72E0CF3F411D692C9E /* PitchDetector.swift */; };
+		91AA33201BCEE2D139B8FB97 /* ModelContainerFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17E61BD909CF29428F295768 /* ModelContainerFactory.swift */; };
+		9874E8C0F5633C51E9368159 /* IdeaRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F6D60A95F0BFCF7EA80B72 /* IdeaRecorderView.swift */; };
+		99100B9D34D367F18DA5078B /* StaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48CC184E8949F013FC27BD50 /* StaffView.swift */; };
+		992573732A4B89A0185DC890 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C27FAECB8063FC0E128B767D /* LaunchScreen.storyboard */; };
+		9C8DEDE536818DBB7C630B7A /* MusicTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41802948607D6F8315C3F08E /* MusicTypes.swift */; };
+		9E3BF02E5EAA42834AD1B8BF /* CoachTheoryIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2773A7668754BF5488F5A6 /* CoachTheoryIntegrationTests.swift */; };
+		A1A6FA76EF0F85A1F55102C9 /* LibraryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4770D8825F98F8E692747D7A /* LibraryItem.swift */; };
+		A50C0E59E6E4C1EB905FEA09 /* TunerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9EC582B30E6D03938B1C25 /* TunerView.swift */; };
+		A88CE4C645681F2B5F91B4B0 /* LibraryHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5933941B69B8E26C70A5620 /* LibraryHomeView.swift */; };
+		AD13FBDA113754D68F923DCD /* ChordParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A57D496DCFAD3395F5FB18A /* ChordParser.swift */; };
+		AEB4A0EC26F504567E456B08 /* FormPositionTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479DA46CEBDAAC5EE4CC3AB4 /* FormPositionTrackerTests.swift */; };
+		B4F401AF8F3489CD4BFB5438 /* SongsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758CB7147E8D62F3B105B928 /* SongsListView.swift */; };
+		B5590B5F732829253BD2D8C5 /* SessionSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B6DC1581A66B97FABDB2EF /* SessionSetupView.swift */; };
+		BB6AE0CF358D4FF43D9BF50D /* CoachCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB3EC6072D2B1C6372CFD291 /* CoachCoordinator.swift */; };
+		BC1F8755C9D6AA34D3F4E51A /* HarmonyAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29156C5C3519CA7AC9A2B1C8 /* HarmonyAnalyzerTests.swift */; };
+		BCF22EA1FC5D75460A9DA314 /* TheoryNotationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEEC04850544463296BDFB5D /* TheoryNotationEngine.swift */; };
+		C1C6AB9DC45DC7A6F1E5AFA5 /* IdeaRecorderEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87661C93E95F64F7F3F5214A /* IdeaRecorderEngine.swift */; };
+		C63DF9EC8E8317DC5AC9D935 /* ImprovBuddyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B22BB4476E7E9679AA606B /* ImprovBuddyApp.swift */; };
+		D3A85905784FEFDC846D2E45 /* SongEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1855610D51E1C058491FEE1E /* SongEditorView.swift */; };
+		D4A2B1B1A1A7F7EA63D95C03 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D105A103E1F2200590477614 /* AppEnvironment.swift */; };
+		D52C1E2036E9F0BA32115B9F /* MIDIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AD6D97851D1F4B7F6AC184C /* MIDIManager.swift */; };
+		D5E0403BC013277D7B9C0356 /* PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE7EE276B1CDFA12B18E054 /* PracticeSession.swift */; };
+		D6BAE590FCBBEB6EEF7D3F83 /* PianoStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D3FB0C395A0DE80B50A92D /* PianoStripView.swift */; };
+		D7B7202F29BCF64A129C8C7C /* SwingAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86E770B86F3DF0FA341369F /* SwingAnalyzer.swift */; };
+		DBE9EF0161CC6AA524CD2D22 /* FloatRingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2EC59195ECED2B6949A116 /* FloatRingBuffer.swift */; };
+		DC78A9B2088FA9BB5A6F9E87 /* TunerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC88B51E705FBADBA79E42E1 /* TunerEngine.swift */; };
+		DDF55EC0515A114F948B8F4B /* TheoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88DE5949AF12B0D45E39639 /* TheoryModels.swift */; };
+		E5CD86249BE7D48D6F3355BA /* LiveSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CDA9EF41C146E32E857190B /* LiveSessionView.swift */; };
+		E61AFA8E0E7834645EE35ED9 /* TheoryResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D6EB3665D5B72711333A8C /* TheoryResolver.swift */; };
+		E900FFED6917BF35A6E95F9B /* NoteSpellingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E6FB8E3DFBA9CA5446CAD8E /* NoteSpellingTests.swift */; };
+		EF021CEDC774904D11A289B7 /* CodableBlob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46DCEF94DC2E9607051E4927 /* CodableBlob.swift */; };
+		F047BA5666630C96C0139ED0 /* PracticeSandboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E080BE48BEFF9A83AA926A /* PracticeSandboxView.swift */; };
+		F98738DFBB59ACA1095D18E5 /* DrillTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A19A3952B1B55006ED865F7E /* DrillTemplate.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4F97D01FCCFF4C2DE2C146AE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F2B6077F1A53E3B2266C4424 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AAC40ACC278F89761BBC315C;
+			remoteInfo = ImprovBuddy;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0AC7B183ABB061B88147FED2 /* InputEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputEvents.swift; sourceTree = "<group>"; };
+		0C11BF72E0CF3F411D692C9E /* PitchDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchDetector.swift; sourceTree = "<group>"; };
+		0C2773A7668754BF5488F5A6 /* CoachTheoryIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTheoryIntegrationTests.swift; sourceTree = "<group>"; };
+		17E61BD909CF29428F295768 /* ModelContainerFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelContainerFactory.swift; sourceTree = "<group>"; };
+		1855610D51E1C058491FEE1E /* SongEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongEditorView.swift; sourceTree = "<group>"; };
+		19F9DBA5E9305AB90A15B044 /* TextChartImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextChartImportView.swift; sourceTree = "<group>"; };
+		1C46E2043FA981BCE397F1FB /* SimpleSynth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleSynth.swift; sourceTree = "<group>"; };
+		20A3F3B0BB2C5A2391C36308 /* TheoryKnowledgeBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryKnowledgeBase.swift; sourceTree = "<group>"; };
+		21B22BB4476E7E9679AA606B /* ImprovBuddyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImprovBuddyApp.swift; sourceTree = "<group>"; };
+		24D922444B946F18AE7B4D4E /* CoachPromptGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachPromptGenerator.swift; sourceTree = "<group>"; };
+		28CA522C5C9C959DFE7694AE /* Chord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chord.swift; sourceTree = "<group>"; };
+		29156C5C3519CA7AC9A2B1C8 /* HarmonyAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarmonyAnalyzerTests.swift; sourceTree = "<group>"; };
+		2A57D496DCFAD3395F5FB18A /* ChordParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordParser.swift; sourceTree = "<group>"; };
+		2AD6D97851D1F4B7F6AC184C /* MIDIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIManager.swift; sourceTree = "<group>"; };
+		2CE7EE276B1CDFA12B18E054 /* PracticeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSession.swift; sourceTree = "<group>"; };
+		2DA82BFBD2F6F5047F7EA6C3 /* TheoryTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryTestSupport.swift; sourceTree = "<group>"; };
+		2E6FB8E3DFBA9CA5446CAD8E /* NoteSpellingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSpellingTests.swift; sourceTree = "<group>"; };
+		3754708A7A60391ECB1FF8AE /* CoachHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachHomeView.swift; sourceTree = "<group>"; };
+		3847618FB5408C46D5B5EBC3 /* TranspositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranspositionTests.swift; sourceTree = "<group>"; };
+		41802948607D6F8315C3F08E /* MusicTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicTypes.swift; sourceTree = "<group>"; };
+		432DEF0B65BDABD6F96CFD60 /* StaffMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaffMappingTests.swift; sourceTree = "<group>"; };
+		46D6EB3665D5B72711333A8C /* TheoryResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryResolver.swift; sourceTree = "<group>"; };
+		46DCEF94DC2E9607051E4927 /* CodableBlob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodableBlob.swift; sourceTree = "<group>"; };
+		4770D8825F98F8E692747D7A /* LibraryItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryItem.swift; sourceTree = "<group>"; };
+		479DA46CEBDAAC5EE4CC3AB4 /* FormPositionTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormPositionTrackerTests.swift; sourceTree = "<group>"; };
+		48CC184E8949F013FC27BD50 /* StaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaffView.swift; sourceTree = "<group>"; };
+		49C373AD9B3157DDF655AB48 /* ImprovBuddy.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ImprovBuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		53332E849D3B2626762B9D9E /* ChordParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordParserTests.swift; sourceTree = "<group>"; };
+		60138B7C53FB98A68971D996 /* ProfessorNotesGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessorNotesGenerator.swift; sourceTree = "<group>"; };
+		670B3AA71070CD25E6F358F1 /* BPMDetectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BPMDetectorView.swift; sourceTree = "<group>"; };
+		6CB9B602CC6E742621D02FB6 /* TheoryDatasetLoadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryDatasetLoadTests.swift; sourceTree = "<group>"; };
+		6CDA9EF41C146E32E857190B /* LiveSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSessionView.swift; sourceTree = "<group>"; };
+		758CB7147E8D62F3B105B928 /* SongsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongsListView.swift; sourceTree = "<group>"; };
+		7D9EC582B30E6D03938B1C25 /* TunerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunerView.swift; sourceTree = "<group>"; };
+		80E5C6942431F959198B9E69 /* ServiceContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceContainer.swift; sourceTree = "<group>"; };
+		80E9114C4C5C8F07C75C201E /* ImprovBuddyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ImprovBuddyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		87661C93E95F64F7F3F5214A /* IdeaRecorderEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaRecorderEngine.swift; sourceTree = "<group>"; };
+		906F23BCCB650B45D56C7E21 /* OnsetDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnsetDetector.swift; sourceTree = "<group>"; };
+		9468BE309757D3BFBD3DCA30 /* theory_library_v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = theory_library_v1.json; sourceTree = "<group>"; };
+		A0A3588FF6C12C4719EDD238 /* ToolsHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsHomeView.swift; sourceTree = "<group>"; };
+		A19A3952B1B55006ED865F7E /* DrillTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillTemplate.swift; sourceTree = "<group>"; };
+		A6D3FB0C395A0DE80B50A92D /* PianoStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoStripView.swift; sourceTree = "<group>"; };
+		AA2EC59195ECED2B6949A116 /* FloatRingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatRingBuffer.swift; sourceTree = "<group>"; };
+		AD0EEAB4F1E3A7E067E8C0D6 /* AudioEngineManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineManager.swift; sourceTree = "<group>"; };
+		AE491D95B870F7F37484A485 /* MetronomeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetronomeEngine.swift; sourceTree = "<group>"; };
+		AEEC04850544463296BDFB5D /* TheoryNotationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryNotationEngine.swift; sourceTree = "<group>"; };
+		B5154439730CD774A602328F /* Song.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Song.swift; sourceTree = "<group>"; };
+		B88DE5949AF12B0D45E39639 /* TheoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryModels.swift; sourceTree = "<group>"; };
+		BB3EC6072D2B1C6372CFD291 /* CoachCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachCoordinator.swift; sourceTree = "<group>"; };
+		BCCB52AFEA2CE30598E18C89 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		BEB2081EB632C90A2C1EC9BA /* TheoryLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryLibraryView.swift; sourceTree = "<group>"; };
+		C1E080BE48BEFF9A83AA926A /* PracticeSandboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSandboxView.swift; sourceTree = "<group>"; };
+		C27FAECB8063FC0E128B767D /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		C42F8174DC28F6D4063D0DA2 /* LickCardsLabsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LickCardsLabsView.swift; sourceTree = "<group>"; };
+		C4C0DF46FA9F49A5AC090D58 /* HarmonyAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarmonyAnalyzer.swift; sourceTree = "<group>"; };
+		C62C4537B3D4E7F4115677BA /* DebugTestLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugTestLabView.swift; sourceTree = "<group>"; };
+		CB9557E4FE6C1C2581120960 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		CC60076E53DB37D0D8151CF5 /* MetronomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetronomeView.swift; sourceTree = "<group>"; };
+		CC790468805CFD70725EB7C1 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		D105A103E1F2200590477614 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		D425B0FDADC592E304D1D139 /* PracticeSandboxEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSandboxEngine.swift; sourceTree = "<group>"; };
+		D4B6DC1581A66B97FABDB2EF /* SessionSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSetupView.swift; sourceTree = "<group>"; };
+		D5751D21D4E0E6288790AD3D /* ChordScaleMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordScaleMappingTests.swift; sourceTree = "<group>"; };
+		D60A4C699C2D3C804495C58C /* FormPositionTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormPositionTracker.swift; sourceTree = "<group>"; };
+		D86E770B86F3DF0FA341369F /* SwingAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwingAnalyzer.swift; sourceTree = "<group>"; };
+		D8FCC89FD49D938669DAF9C0 /* TheoryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheoryEntry.swift; sourceTree = "<group>"; };
+		D92D6C9A510A525DEC2BBBD8 /* BPMDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BPMDetector.swift; sourceTree = "<group>"; };
+		DD973384E73FF7084F658BD5 /* UnifiedEventBus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedEventBus.swift; sourceTree = "<group>"; };
+		E058845618D658A959418017 /* CoachSessionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachSessionEngine.swift; sourceTree = "<group>"; };
+		E12876EDA5BD68B8BD2AF0A9 /* TempoAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoAnalyzer.swift; sourceTree = "<group>"; };
+		E1F0B6B49F4A646F9767B83D /* SessionReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionReportView.swift; sourceTree = "<group>"; };
+		E5933941B69B8E26C70A5620 /* LibraryHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryHomeView.swift; sourceTree = "<group>"; };
+		E5F6D60A95F0BFCF7EA80B72 /* IdeaRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaRecorderView.swift; sourceTree = "<group>"; };
+		FA8564D5C7E92BF00E9F5101 /* Measure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Measure.swift; sourceTree = "<group>"; };
+		FAAA4A6DE284C5034F1E5350 /* SimpleSynthThreadSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleSynthThreadSafetyTests.swift; sourceTree = "<group>"; };
+		FC88B51E705FBADBA79E42E1 /* TunerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunerEngine.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1100C31DFC4DE6D31D1585CE /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				96F6FA9781C8B42681FE235D /* Coach */,
+				7EC3FE4D096700EB3EC39EFB /* Library */,
+				DB394AC6F535DC6DD5761137 /* Settings */,
+				6C0217357EB3C52610335D16 /* Shared */,
+				57C4DE9FD9447A792E208384 /* Songs */,
+				41AC33F6C988F4187B4C7CD6 /* Tools */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		1687702523B99F6EDE7CADB4 /* Parsing */ = {
+			isa = PBXGroup;
+			children = (
+				2A57D496DCFAD3395F5FB18A /* ChordParser.swift */,
+			);
+			path = Parsing;
+			sourceTree = "<group>";
+		};
+		41AC33F6C988F4187B4C7CD6 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				670B3AA71070CD25E6F358F1 /* BPMDetectorView.swift */,
+				CC60076E53DB37D0D8151CF5 /* MetronomeView.swift */,
+				D425B0FDADC592E304D1D139 /* PracticeSandboxEngine.swift */,
+				C1E080BE48BEFF9A83AA926A /* PracticeSandboxView.swift */,
+				A0A3588FF6C12C4719EDD238 /* ToolsHomeView.swift */,
+				7D9EC582B30E6D03938B1C25 /* TunerView.swift */,
+			);
+			path = Tools;
+			sourceTree = "<group>";
+		};
+		45CE5F6E22D2EFEFC00EC029 /* Debug */ = {
+			isa = PBXGroup;
+			children = (
+				C62C4537B3D4E7F4115677BA /* DebugTestLabView.swift */,
+			);
+			path = Debug;
+			sourceTree = "<group>";
+		};
+		4FD61D0CEDB054C7F41438D0 = {
+			isa = PBXGroup;
+			children = (
+				DD12BF8C2E29AC7071D74A6F /* ImprovBuddy */,
+				DE5B18821E333C805DFE51B8 /* ImprovBuddyTests */,
+				A17E0D8B1834A67AEB4F653B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		57C4DE9FD9447A792E208384 /* Songs */ = {
+			isa = PBXGroup;
+			children = (
+				1855610D51E1C058491FEE1E /* SongEditorView.swift */,
+				758CB7147E8D62F3B105B928 /* SongsListView.swift */,
+				19F9DBA5E9305AB90A15B044 /* TextChartImportView.swift */,
+			);
+			path = Songs;
+			sourceTree = "<group>";
+		};
+		6C0217357EB3C52610335D16 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				CB9557E4FE6C1C2581120960 /* RootTabView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		7EC3FE4D096700EB3EC39EFB /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				E5F6D60A95F0BFCF7EA80B72 /* IdeaRecorderView.swift */,
+				E5933941B69B8E26C70A5620 /* LibraryHomeView.swift */,
+				C42F8174DC28F6D4063D0DA2 /* LickCardsLabsView.swift */,
+				A6D3FB0C395A0DE80B50A92D /* PianoStripView.swift */,
+				48CC184E8949F013FC27BD50 /* StaffView.swift */,
+				BEB2081EB632C90A2C1EC9BA /* TheoryLibraryView.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		7F5C5D27FC8226B1E9E337C1 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				D92D6C9A510A525DEC2BBBD8 /* BPMDetector.swift */,
+				87661C93E95F64F7F3F5214A /* IdeaRecorderEngine.swift */,
+				AE491D95B870F7F37484A485 /* MetronomeEngine.swift */,
+				1C46E2043FA981BCE397F1FB /* SimpleSynth.swift */,
+				FC88B51E705FBADBA79E42E1 /* TunerEngine.swift */,
+			);
+			path = Tools;
+			sourceTree = "<group>";
+		};
+		96F6FA9781C8B42681FE235D /* Coach */ = {
+			isa = PBXGroup;
+			children = (
+				BB3EC6072D2B1C6372CFD291 /* CoachCoordinator.swift */,
+				3754708A7A60391ECB1FF8AE /* CoachHomeView.swift */,
+				6CDA9EF41C146E32E857190B /* LiveSessionView.swift */,
+				E1F0B6B49F4A646F9767B83D /* SessionReportView.swift */,
+				D4B6DC1581A66B97FABDB2EF /* SessionSetupView.swift */,
+			);
+			path = Coach;
+			sourceTree = "<group>";
+		};
+		98CEEA0B231A779B3577E60D /* Analysis */ = {
+			isa = PBXGroup;
+			children = (
+				D60A4C699C2D3C804495C58C /* FormPositionTracker.swift */,
+				C4C0DF46FA9F49A5AC090D58 /* HarmonyAnalyzer.swift */,
+				906F23BCCB650B45D56C7E21 /* OnsetDetector.swift */,
+				0C11BF72E0CF3F411D692C9E /* PitchDetector.swift */,
+				D86E770B86F3DF0FA341369F /* SwingAnalyzer.swift */,
+				E12876EDA5BD68B8BD2AF0A9 /* TempoAnalyzer.swift */,
+			);
+			path = Analysis;
+			sourceTree = "<group>";
+		};
+		A17E0D8B1834A67AEB4F653B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				49C373AD9B3157DDF655AB48 /* ImprovBuddy.app */,
+				80E9114C4C5C8F07C75C201E /* ImprovBuddyTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A7A95325CDCEA2C705F88735 /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				98CEEA0B231A779B3577E60D /* Analysis */,
+				D49445A7D65E67F74E7961F4 /* Coach */,
+				F8A533EC54B11A8C12506756 /* Input */,
+				7F5C5D27FC8226B1E9E337C1 /* Tools */,
+			);
+			path = Engine;
+			sourceTree = "<group>";
+		};
+		AE0AD0B8A2D97A7011ECDB9B /* App */ = {
+			isa = PBXGroup;
+			children = (
+				D105A103E1F2200590477614 /* AppEnvironment.swift */,
+				21B22BB4476E7E9679AA606B /* ImprovBuddyApp.swift */,
+				17E61BD909CF29428F295768 /* ModelContainerFactory.swift */,
+				80E5C6942431F959198B9E69 /* ServiceContainer.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		B62B72BE4DDCF027117B7DA2 /* Theory */ = {
+			isa = PBXGroup;
+			children = (
+				20A3F3B0BB2C5A2391C36308 /* TheoryKnowledgeBase.swift */,
+				B88DE5949AF12B0D45E39639 /* TheoryModels.swift */,
+				AEEC04850544463296BDFB5D /* TheoryNotationEngine.swift */,
+				46D6EB3665D5B72711333A8C /* TheoryResolver.swift */,
+			);
+			path = Theory;
+			sourceTree = "<group>";
+		};
+		D49445A7D65E67F74E7961F4 /* Coach */ = {
+			isa = PBXGroup;
+			children = (
+				24D922444B946F18AE7B4D4E /* CoachPromptGenerator.swift */,
+				E058845618D658A959418017 /* CoachSessionEngine.swift */,
+				60138B7C53FB98A68971D996 /* ProfessorNotesGenerator.swift */,
+			);
+			path = Coach;
+			sourceTree = "<group>";
+		};
+		DB394AC6F535DC6DD5761137 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				CC790468805CFD70725EB7C1 /* HelpView.swift */,
+				BCCB52AFEA2CE30598E18C89 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		DD12BF8C2E29AC7071D74A6F /* ImprovBuddy */ = {
+			isa = PBXGroup;
+			children = (
+				AE0AD0B8A2D97A7011ECDB9B /* App */,
+				45CE5F6E22D2EFEFC00EC029 /* Debug */,
+				A7A95325CDCEA2C705F88735 /* Engine */,
+				1100C31DFC4DE6D31D1585CE /* Features */,
+				F91861E3900C58EDA3C07F2B /* Models */,
+				1687702523B99F6EDE7CADB4 /* Parsing */,
+				F938EA9FD30F3F49A437D1A8 /* Resources */,
+				B62B72BE4DDCF027117B7DA2 /* Theory */,
+			);
+			path = ImprovBuddy;
+			sourceTree = "<group>";
+		};
+		DE5B18821E333C805DFE51B8 /* ImprovBuddyTests */ = {
+			isa = PBXGroup;
+			children = (
+				53332E849D3B2626762B9D9E /* ChordParserTests.swift */,
+				D5751D21D4E0E6288790AD3D /* ChordScaleMappingTests.swift */,
+				0C2773A7668754BF5488F5A6 /* CoachTheoryIntegrationTests.swift */,
+				479DA46CEBDAAC5EE4CC3AB4 /* FormPositionTrackerTests.swift */,
+				29156C5C3519CA7AC9A2B1C8 /* HarmonyAnalyzerTests.swift */,
+				2E6FB8E3DFBA9CA5446CAD8E /* NoteSpellingTests.swift */,
+				FAAA4A6DE284C5034F1E5350 /* SimpleSynthThreadSafetyTests.swift */,
+				432DEF0B65BDABD6F96CFD60 /* StaffMappingTests.swift */,
+				6CB9B602CC6E742621D02FB6 /* TheoryDatasetLoadTests.swift */,
+				2DA82BFBD2F6F5047F7EA6C3 /* TheoryTestSupport.swift */,
+				3847618FB5408C46D5B5EBC3 /* TranspositionTests.swift */,
+			);
+			path = ImprovBuddyTests;
+			sourceTree = "<group>";
+		};
+		F8A533EC54B11A8C12506756 /* Input */ = {
+			isa = PBXGroup;
+			children = (
+				AD0EEAB4F1E3A7E067E8C0D6 /* AudioEngineManager.swift */,
+				AA2EC59195ECED2B6949A116 /* FloatRingBuffer.swift */,
+				0AC7B183ABB061B88147FED2 /* InputEvents.swift */,
+				2AD6D97851D1F4B7F6AC184C /* MIDIManager.swift */,
+				DD973384E73FF7084F658BD5 /* UnifiedEventBus.swift */,
+			);
+			path = Input;
+			sourceTree = "<group>";
+		};
+		F91861E3900C58EDA3C07F2B /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				28CA522C5C9C959DFE7694AE /* Chord.swift */,
+				46DCEF94DC2E9607051E4927 /* CodableBlob.swift */,
+				A19A3952B1B55006ED865F7E /* DrillTemplate.swift */,
+				4770D8825F98F8E692747D7A /* LibraryItem.swift */,
+				FA8564D5C7E92BF00E9F5101 /* Measure.swift */,
+				41802948607D6F8315C3F08E /* MusicTypes.swift */,
+				2CE7EE276B1CDFA12B18E054 /* PracticeSession.swift */,
+				B5154439730CD774A602328F /* Song.swift */,
+				D8FCC89FD49D938669DAF9C0 /* TheoryEntry.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		F938EA9FD30F3F49A437D1A8 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				C27FAECB8063FC0E128B767D /* LaunchScreen.storyboard */,
+				9468BE309757D3BFBD3DCA30 /* theory_library_v1.json */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AAC40ACC278F89761BBC315C /* ImprovBuddy */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8E06AECBDA451E43BD78D0F6 /* Build configuration list for PBXNativeTarget "ImprovBuddy" */;
+			buildPhases = (
+				71977FFB4D52C96358E0C3F2 /* Sources */,
+				7D4FF7E9E129CFF0900143BA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ImprovBuddy;
+			packageProductDependencies = (
+			);
+			productName = ImprovBuddy;
+			productReference = 49C373AD9B3157DDF655AB48 /* ImprovBuddy.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B01EBC991EB8C80C71E0F793 /* ImprovBuddyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FB6514BDE2BD2B9E391032EB /* Build configuration list for PBXNativeTarget "ImprovBuddyTests" */;
+			buildPhases = (
+				53651F1DE44F211466F412E5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3FBA0B79D33C0F8ADE832C11 /* PBXTargetDependency */,
+			);
+			name = ImprovBuddyTests;
+			packageProductDependencies = (
+			);
+			productName = ImprovBuddyTests;
+			productReference = 80E9114C4C5C8F07C75C201E /* ImprovBuddyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F2B6077F1A53E3B2266C4424 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					AAC40ACC278F89761BBC315C = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 9DA863C5CFCD158AAF32A9C0 /* Build configuration list for PBXProject "ImprovBuddy" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 4FD61D0CEDB054C7F41438D0;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AAC40ACC278F89761BBC315C /* ImprovBuddy */,
+				B01EBC991EB8C80C71E0F793 /* ImprovBuddyTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7D4FF7E9E129CFF0900143BA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				992573732A4B89A0185DC890 /* LaunchScreen.storyboard in Resources */,
+				3D0220E2B37A4E0974738EA5 /* theory_library_v1.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		53651F1DE44F211466F412E5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A0620D6921A33650F95BBA8 /* ChordParserTests.swift in Sources */,
+				25F891B048C0AF2B87C60608 /* ChordScaleMappingTests.swift in Sources */,
+				9E3BF02E5EAA42834AD1B8BF /* CoachTheoryIntegrationTests.swift in Sources */,
+				AEB4A0EC26F504567E456B08 /* FormPositionTrackerTests.swift in Sources */,
+				BC1F8755C9D6AA34D3F4E51A /* HarmonyAnalyzerTests.swift in Sources */,
+				E900FFED6917BF35A6E95F9B /* NoteSpellingTests.swift in Sources */,
+				2F6199CF751944F20D41D44C /* SimpleSynthThreadSafetyTests.swift in Sources */,
+				84C5764F95489FAE9343B553 /* StaffMappingTests.swift in Sources */,
+				79F86E43E64FD78DC007E9FD /* TheoryDatasetLoadTests.swift in Sources */,
+				6A8650ACE0B09F3E42920B8B /* TheoryTestSupport.swift in Sources */,
+				6185EFE72735573ABE8C4084 /* TranspositionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		71977FFB4D52C96358E0C3F2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D4A2B1B1A1A7F7EA63D95C03 /* AppEnvironment.swift in Sources */,
+				413670266BF4F2ED95D12303 /* AudioEngineManager.swift in Sources */,
+				7FE87EDA9DCA863243476E84 /* BPMDetector.swift in Sources */,
+				763E1F533085CF2960ADF887 /* BPMDetectorView.swift in Sources */,
+				1315490D1E549F2F810C29EA /* Chord.swift in Sources */,
+				AD13FBDA113754D68F923DCD /* ChordParser.swift in Sources */,
+				BB6AE0CF358D4FF43D9BF50D /* CoachCoordinator.swift in Sources */,
+				2C5C263D0FDAF9F68CDDC4DB /* CoachHomeView.swift in Sources */,
+				10681448CA027E0CBF5AFA2C /* CoachPromptGenerator.swift in Sources */,
+				1B22652AAFD46A8C7A797F81 /* CoachSessionEngine.swift in Sources */,
+				EF021CEDC774904D11A289B7 /* CodableBlob.swift in Sources */,
+				5A07052804C7B8DB9D646F25 /* DebugTestLabView.swift in Sources */,
+				F98738DFBB59ACA1095D18E5 /* DrillTemplate.swift in Sources */,
+				DBE9EF0161CC6AA524CD2D22 /* FloatRingBuffer.swift in Sources */,
+				23820380CE4C423AB6143F82 /* FormPositionTracker.swift in Sources */,
+				73759D4B9F70D7BFF2C41E51 /* HarmonyAnalyzer.swift in Sources */,
+				8603869BA71D707B12D3CF07 /* HelpView.swift in Sources */,
+				C1C6AB9DC45DC7A6F1E5AFA5 /* IdeaRecorderEngine.swift in Sources */,
+				9874E8C0F5633C51E9368159 /* IdeaRecorderView.swift in Sources */,
+				C63DF9EC8E8317DC5AC9D935 /* ImprovBuddyApp.swift in Sources */,
+				783A473D5F0E869AA60FDD5E /* InputEvents.swift in Sources */,
+				A88CE4C645681F2B5F91B4B0 /* LibraryHomeView.swift in Sources */,
+				A1A6FA76EF0F85A1F55102C9 /* LibraryItem.swift in Sources */,
+				2F9AB14A8F61DA0296EA634D /* LickCardsLabsView.swift in Sources */,
+				E5CD86249BE7D48D6F3355BA /* LiveSessionView.swift in Sources */,
+				D52C1E2036E9F0BA32115B9F /* MIDIManager.swift in Sources */,
+				4BEF429CA4DBEEAFC3C1EF8D /* Measure.swift in Sources */,
+				43059DF61DA3B857C7EA90AA /* MetronomeEngine.swift in Sources */,
+				43517EC518D03B132D9537B4 /* MetronomeView.swift in Sources */,
+				91AA33201BCEE2D139B8FB97 /* ModelContainerFactory.swift in Sources */,
+				9C8DEDE536818DBB7C630B7A /* MusicTypes.swift in Sources */,
+				64D91CDDE423A8766DAD3499 /* OnsetDetector.swift in Sources */,
+				D6BAE590FCBBEB6EEF7D3F83 /* PianoStripView.swift in Sources */,
+				8EEC3DA3CDF384A95627E81B /* PitchDetector.swift in Sources */,
+				4D4720498D54BA95299E61E1 /* PracticeSandboxEngine.swift in Sources */,
+				F047BA5666630C96C0139ED0 /* PracticeSandboxView.swift in Sources */,
+				D5E0403BC013277D7B9C0356 /* PracticeSession.swift in Sources */,
+				27675F0A16DAF14D542B046D /* ProfessorNotesGenerator.swift in Sources */,
+				4A542C3D8B6DF9AE52B6C043 /* RootTabView.swift in Sources */,
+				2D93C20E9D5A92F9643A4592 /* ServiceContainer.swift in Sources */,
+				7BD307306AE172727F0BF7D1 /* SessionReportView.swift in Sources */,
+				B5590B5F732829253BD2D8C5 /* SessionSetupView.swift in Sources */,
+				1305F6502A4C5D336800592B /* SettingsView.swift in Sources */,
+				8AE3F55B1557C808C6A368DC /* SimpleSynth.swift in Sources */,
+				8B8BAC8C707BB4403CB8D6F3 /* Song.swift in Sources */,
+				D3A85905784FEFDC846D2E45 /* SongEditorView.swift in Sources */,
+				B4F401AF8F3489CD4BFB5438 /* SongsListView.swift in Sources */,
+				99100B9D34D367F18DA5078B /* StaffView.swift in Sources */,
+				D7B7202F29BCF64A129C8C7C /* SwingAnalyzer.swift in Sources */,
+				444A3697BD1F8BB795FF792E /* TempoAnalyzer.swift in Sources */,
+				663F7191DE70C620047720E9 /* TextChartImportView.swift in Sources */,
+				498CA8CC88909297CC542E2E /* TheoryEntry.swift in Sources */,
+				5D1E5303C8F97CF170666F01 /* TheoryKnowledgeBase.swift in Sources */,
+				6D8819DD75A023B305333A0A /* TheoryLibraryView.swift in Sources */,
+				DDF55EC0515A114F948B8F4B /* TheoryModels.swift in Sources */,
+				BCF22EA1FC5D75460A9DA314 /* TheoryNotationEngine.swift in Sources */,
+				E61AFA8E0E7834645EE35ED9 /* TheoryResolver.swift in Sources */,
+				0E756CA4E03D6EB7767F4E89 /* ToolsHomeView.swift in Sources */,
+				DC78A9B2088FA9BB5A6F9E87 /* TunerEngine.swift in Sources */,
+				A50C0E59E6E4C1EB905FEA09 /* TunerView.swift in Sources */,
+				880E66114E1BB93C69C62762 /* UnifiedEventBus.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3FBA0B79D33C0F8ADE832C11 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AAC40ACC278F89761BBC315C /* ImprovBuddy */;
+			targetProxy = 4F97D01FCCFF4C2DE2C146AE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		35D4AD2E5B2809F1A7996B25 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ImprovBuddy uses your microphone to analyze time feel and pitch.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nbz.ImprovBuddy;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		59B49548E3FFC90404202718 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nbz.ImprovBuddyTests;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ImprovBuddy.app/ImprovBuddy";
+			};
+			name = Release;
+		};
+		71C77DB86F6912B3DF6DFC12 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_ASSET_PATHS = ImprovBuddy/Resources;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nbz.ImprovBuddy;
+				PRODUCT_NAME = ImprovBuddy;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG TEST_LAB";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8D6DE0263EC427771D5CD367 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nbz.ImprovBuddyTests;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ImprovBuddy.app/ImprovBuddy";
+			};
+			name = Debug;
+		};
+		B9423FCD903C5D36874305F2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_ASSET_PATHS = ImprovBuddy/Resources;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nbz.ImprovBuddy;
+				PRODUCT_NAME = ImprovBuddy;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = RELEASE;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		EEAC7EFACAEE25FB4B8EA80E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ImprovBuddy uses your microphone to analyze time feel and pitch.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nbz.ImprovBuddy;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8E06AECBDA451E43BD78D0F6 /* Build configuration list for PBXNativeTarget "ImprovBuddy" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				71C77DB86F6912B3DF6DFC12 /* Debug */,
+				B9423FCD903C5D36874305F2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9DA863C5CFCD158AAF32A9C0 /* Build configuration list for PBXProject "ImprovBuddy" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				35D4AD2E5B2809F1A7996B25 /* Debug */,
+				EEAC7EFACAEE25FB4B8EA80E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FB6514BDE2BD2B9E391032EB /* Build configuration list for PBXNativeTarget "ImprovBuddyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8D6DE0263EC427771D5CD367 /* Debug */,
+				59B49548E3FFC90404202718 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F2B6077F1A53E3B2266C4424 /* Project object */;
+}
