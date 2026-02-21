@@ -260,3 +260,155 @@ final class ToolsSettingsPersistenceTests: XCTestCase {
         XCTAssertEqual(second.metronome, first.metronome)
     }
 }
+
+@MainActor
+final class SongsTagFilteringTests: XCTestCase {
+    func testSongTagNormalizationAndMutationHelpers() {
+        let song = Song(
+            title: "Autumn Leaves",
+            composer: "Kosma",
+            styleTags: [" Swing ", "bebop", "swing"],
+            defaultTempoBPM: 140,
+            feel: .swing,
+            timeSignatureTop: 4,
+            timeSignatureBottom: 4,
+            form: [Measure(index: 0, sectionLabel: "A", chordSymbol: "Cm7")]
+        )
+
+        XCTAssertEqual(song.tags, ["swing", "bebop"])
+        XCTAssertTrue(song.hasTag("SWING"))
+
+        song.addTag(" latin ")
+        XCTAssertTrue(song.hasTag("latin"))
+
+        song.renameTag(from: "bebop", to: "hard bop")
+        XCTAssertFalse(song.hasTag("bebop"))
+        XCTAssertTrue(song.hasTag("hard bop"))
+
+        song.renameTag(from: "hard bop", to: "")
+        XCTAssertFalse(song.hasTag("hard bop"))
+
+        song.removeTag("latin")
+        XCTAssertFalse(song.hasTag("latin"))
+    }
+}
+
+final class PDFSongMetadataExtractorTests: XCTestCase {
+    func testUsesDocumentMetadataWhenPresent() {
+        let metadata = PDFSongMetadataExtractor.extract(
+            documentMetadataTitle: "Blue Bossa",
+            documentMetadataAuthor: "Kenny Dorham",
+            firstPageText: nil,
+            fileName: "ignored"
+        )
+
+        XCTAssertEqual(metadata.source, .documentAttributes)
+        XCTAssertEqual(metadata.title, "Blue Bossa")
+        XCTAssertEqual(metadata.author, "Kenny Dorham")
+        XCTAssertGreaterThan(metadata.confidence, 0.9)
+    }
+
+    func testFallsBackToFirstPageHeuristic() {
+        let metadata = PDFSongMetadataExtractor.extract(
+            documentMetadataTitle: nil,
+            documentMetadataAuthor: nil,
+            firstPageText: "Stella By Starlight\nBy Victor Young\nLead Sheet",
+            fileName: "stella"
+        )
+
+        XCTAssertEqual(metadata.source, .firstPageHeuristic)
+        XCTAssertEqual(metadata.title, "Stella By Starlight")
+        XCTAssertEqual(metadata.author, "Victor Young")
+    }
+
+    func testFallsBackToFilenameWhenNoMetadataOrText() {
+        let metadata = PDFSongMetadataExtractor.extract(
+            documentMetadataTitle: nil,
+            documentMetadataAuthor: nil,
+            firstPageText: nil,
+            fileName: "all_the-things_you_are"
+        )
+
+        XCTAssertEqual(metadata.source, .fileNameFallback)
+        XCTAssertEqual(metadata.title, "all the things you are")
+        XCTAssertNil(metadata.author)
+    }
+}
+
+@MainActor
+final class GlobalToolOverlayStateTests: XCTestCase {
+    func testOverlayPreferencePersistenceRoundTrip() {
+        let suiteName = "GlobalToolOverlayStateTests.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Expected dedicated user defaults suite")
+            return
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let first = ToolOverlayPreferencesStore(defaults: defaults)
+        first.tuner = ToolOverlayPreferences(
+            corner: .bottomRight,
+            offsetX: 12,
+            offsetY: -9,
+            isExpanded: true,
+            isVisible: true
+        )
+        first.bpm = ToolOverlayPreferences(
+            corner: .topLeft,
+            offsetX: -4,
+            offsetY: 6,
+            isExpanded: false,
+            isVisible: false
+        )
+
+        let second = ToolOverlayPreferencesStore(defaults: defaults)
+        XCTAssertEqual(second.tuner.corner, .bottomRight)
+        XCTAssertEqual(second.tuner.offsetX, 12, accuracy: 0.0001)
+        XCTAssertEqual(second.tuner.offsetY, -9, accuracy: 0.0001)
+        XCTAssertTrue(second.tuner.isExpanded)
+        XCTAssertTrue(second.tuner.isVisible)
+
+        XCTAssertEqual(second.bpm.corner, .topLeft)
+        XCTAssertEqual(second.bpm.offsetX, -4, accuracy: 0.0001)
+        XCTAssertEqual(second.bpm.offsetY, 6, accuracy: 0.0001)
+        XCTAssertFalse(second.bpm.isVisible)
+    }
+}
+
+@MainActor
+final class RecorderMetronomeReferenceTests: XCTestCase {
+    func testCaptureStoresCurrentMetronomeState() {
+        let metronome = MetronomeEngine(enableAudioIO: false)
+        metronome.apply(
+            settings: MetronomeSettings(
+                bpm: 173,
+                meter: MeterSignature(top: 7, bottom: 8),
+                subdivision: .triplet,
+                countInBars: 1,
+                soundSet: .woodblock,
+                masterVolume: 0.4,
+                swingAmount: 0.1,
+                grooveEnabled: false,
+                grooveStyle: .rock,
+                grooveIntensity: 0.5,
+                humanizeMs: 0,
+                hapticsEnabled: false
+            )
+        )
+        metronome.start()
+
+        let recorder = IdeaRecorderEngine()
+        recorder.captureMetronomeReference(from: metronome)
+
+        let reference = recorder.lastMetronomeReference
+        XCTAssertNotNil(reference)
+        XCTAssertEqual(reference?.bpm ?? 0, 173, accuracy: 0.0001)
+        XCTAssertEqual(reference?.meterTop, 7)
+        XCTAssertEqual(reference?.meterBottom, 8)
+        XCTAssertEqual(reference?.subdivision, .triplet)
+        XCTAssertTrue(reference?.metronomeRunningAtStart ?? false)
+        XCTAssertNotNil(reference?.startUptime)
+
+        metronome.stop()
+    }
+}

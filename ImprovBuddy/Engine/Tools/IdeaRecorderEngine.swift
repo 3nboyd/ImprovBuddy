@@ -7,6 +7,7 @@ final class IdeaRecorderEngine: NSObject, ObservableObject, AVAudioPlayerDelegat
     @Published private(set) var isPlaying = false
     @Published private(set) var lastRecordedURL: URL?
     @Published private(set) var lastRecordedVideoURL: URL?
+    @Published private(set) var lastMetronomeReference: RecorderMetronomeReference?
 
     private var recorder: AVAudioRecorder?
     private var player: AVAudioPlayer?
@@ -73,6 +74,19 @@ final class IdeaRecorderEngine: NSObject, ObservableObject, AVAudioPlayerDelegat
         } else {
             try startAudioRecording()
         }
+    }
+
+    func captureMetronomeReference(from metronome: MetronomeEngine) {
+        let meter = metronome.meter
+        lastMetronomeReference = RecorderMetronomeReference(
+            bpm: metronome.bpm,
+            meterTop: meter.top,
+            meterBottom: meter.bottom,
+            subdivision: metronome.subdivision,
+            metronomeRunningAtStart: metronome.isRunning,
+            startUptime: ProcessInfo.processInfo.systemUptime,
+            beatPhaseEstimate: 0
+        )
     }
 
     private func startAudioRecording() throws {

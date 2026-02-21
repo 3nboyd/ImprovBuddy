@@ -126,6 +126,16 @@ struct SessionSummaryMetrics: Codable, Hashable {
     )
 }
 
+struct RecorderMetronomeReference: Codable, Hashable {
+    var bpm: Double
+    var meterTop: Int
+    var meterBottom: Int
+    var subdivision: MetronomeSubdivision
+    var metronomeRunningAtStart: Bool
+    var startUptime: TimeInterval
+    var beatPhaseEstimate: Double
+}
+
 enum TunerTemperament: String, Codable, CaseIterable, Identifiable {
     case equal
     case just

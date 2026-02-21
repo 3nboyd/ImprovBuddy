@@ -4,6 +4,7 @@ import SwiftUI
 
 struct IdeaRecorderView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var services: ServiceContainer
 
     @StateObject private var recorder = IdeaRecorderEngine()
 
@@ -149,6 +150,7 @@ struct IdeaRecorderView: View {
         }
 
         do {
+            recorder.captureMetronomeReference(from: services.metronomeEngine)
             try recorder.startRecording(withVideo: recordWithVideo)
             statusText = recordWithVideo ? "Recording video..." : "Recording audio..."
         } catch {
@@ -177,7 +179,8 @@ struct IdeaRecorderView: View {
             tags: tags,
             audioFilePath: recorder.lastRecordedURL?.path,
             keyCenter: nil,
-            tempoBPM: nil
+            tempoBPM: nil,
+            recorderMetronomeReference: recorder.lastMetronomeReference
         )
 
         modelContext.insert(item)

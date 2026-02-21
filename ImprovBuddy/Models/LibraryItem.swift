@@ -30,10 +30,16 @@ final class LibraryItem {
     var transposeSemitones: Int?
 
     var theoryIdentifier: String?
+    var recorderMetronomeReferenceData: Data = Data()
 
     var tags: [String] {
         get { CodableBlob.decode([String].self, from: tagsData, default: []) }
         set { tagsData = CodableBlob.encode(newValue) }
+    }
+
+    var recorderMetronomeReference: RecorderMetronomeReference? {
+        get { CodableBlob.decode(RecorderMetronomeReference?.self, from: recorderMetronomeReferenceData, default: nil) }
+        set { recorderMetronomeReferenceData = CodableBlob.encode(newValue) }
     }
 
     init(
@@ -51,7 +57,8 @@ final class LibraryItem {
         loopStart: Double? = nil,
         loopEnd: Double? = nil,
         transposeSemitones: Int? = nil,
-        theoryIdentifier: String? = nil
+        theoryIdentifier: String? = nil,
+        recorderMetronomeReference: RecorderMetronomeReference? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -68,5 +75,6 @@ final class LibraryItem {
         self.loopEnd = loopEnd
         self.transposeSemitones = transposeSemitones
         self.theoryIdentifier = theoryIdentifier
+        self.recorderMetronomeReferenceData = CodableBlob.encode(recorderMetronomeReference)
     }
 }

@@ -22,6 +22,11 @@ final class Song {
         set { styleTagsData = CodableBlob.encode(newValue) }
     }
 
+    var tags: [String] {
+        get { styleTags }
+        set { styleTags = Song.normalizedTags(from: newValue) }
+    }
+
     var form: [Measure] {
         get { CodableBlob.decode([Measure].self, from: formData, default: []) }
         set { formData = CodableBlob.encode(newValue) }
@@ -53,6 +58,7 @@ final class Song {
         self.timeSignatureBottom = timeSignatureBottom
         self.formData = CodableBlob.encode(form)
         self.pdfReferencePath = pdfReferencePath
+        self.tags = styleTags
     }
 
     var flattenedForm: [Measure] {
@@ -61,6 +67,65 @@ final class Song {
 
     func touch() {
         updatedAt = .now
+    }
+
+    func hasTag(_ rawTag: String) -> Bool {
+        let needle = Song.normalizedTag(rawTag)
+        guard !needle.isEmpty else { return false }
+        return tags.contains(needle)
+    }
+
+    func addTag(_ rawTag: String) {
+        let normalized = Song.normalizedTag(rawTag)
+        guard !normalized.isEmpty else { return }
+        if !hasTag(normalized) {
+            tags.append(normalized)
+        }
+    }
+
+    func removeTag(_ rawTag: String) {
+        let normalized = Song.normalizedTag(rawTag)
+        guard !normalized.isEmpty else { return }
+        tags.removeAll { Song.normalizedTag($0) == normalized }
+    }
+
+    func renameTag(from oldRawTag: String, to newRawTag: String) {
+        let oldTag = Song.normalizedTag(oldRawTag)
+        let newTag = Song.normalizedTag(newRawTag)
+        guard !oldTag.isEmpty else { return }
+        guard !newTag.isEmpty else {
+            removeTag(oldTag)
+            return
+        }
+
+        var next = tags.map(Song.normalizedTag)
+        var changed = false
+        for index in next.indices where next[index] == oldTag {
+            next[index] = newTag
+            changed = true
+        }
+        if changed {
+            tags = next
+        }
+    }
+
+    static func normalizedTag(_ rawTag: String) -> String {
+        rawTag
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .lowercased()
+    }
+
+    static func normalizedTags(from rawTags: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalized: [String] = []
+        for raw in rawTags {
+            let tag = normalizedTag(raw)
+            guard !tag.isEmpty, !seen.contains(tag) else { continue }
+            seen.insert(tag)
+            normalized.append(tag)
+        }
+        return normalized
     }
 }
 

@@ -24,6 +24,7 @@ struct SongEditorView: View {
     @State private var showingPDFPreview = false
     @State private var pdfReferencePath: String?
     @State private var chartImportMessage = ""
+    @State private var pdfImportMessage = ""
 
     @State private var parseErrors: [Int] = []
 
@@ -139,6 +140,12 @@ struct SongEditorView: View {
                     Button("Import PDF Reference") {
                         showingPDFPicker = true
                     }
+
+                    if !pdfImportMessage.isEmpty {
+                        Text(pdfImportMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .navigationTitle(song == nil ? "New Song" : "Edit Song")
@@ -207,7 +214,7 @@ struct SongEditorView: View {
 
         title = song.title
         composer = song.composer ?? ""
-        styleTagsText = song.styleTags.joined(separator: ", ")
+        styleTagsText = song.tags.joined(separator: ", ")
         defaultTempoBPM = song.defaultTempoBPM
         feel = song.feel
         timeSignatureTop = song.timeSignatureTop
@@ -242,15 +249,15 @@ struct SongEditorView: View {
             )
         }
 
-        let parsedTags = styleTagsText
+        let parsedTags = Song.normalizedTags(from: styleTagsText
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+            .filter { !$0.isEmpty })
 
         if let song {
             song.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
             song.composer = composer.isEmpty ? nil : composer
-            song.styleTags = parsedTags
+            song.tags = parsedTags
             song.defaultTempoBPM = defaultTempoBPM
             song.feel = feel
             song.timeSignatureTop = timeSignatureTop
@@ -316,8 +323,18 @@ struct SongEditorView: View {
 
             try FileManager.default.copyItem(at: source, to: destination)
             pdfReferencePath = destination.absoluteString
+
+            let extracted = PDFSongMetadataExtractor.extract(from: destination)
+            if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                title = extracted.title
+            }
+            if composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                composer = extracted.author ?? ""
+            }
+            pdfImportMessage = "Metadata: \(extracted.source.rawValue)"
         } catch {
             print("PDF import failed: \(error)")
+            pdfImportMessage = "PDF import failed: \(error.localizedDescription)"
         }
     }
 
