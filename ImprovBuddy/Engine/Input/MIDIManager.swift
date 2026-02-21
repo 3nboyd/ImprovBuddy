@@ -22,6 +22,7 @@ final class MIDIManager: ObservableObject {
     @Published private(set) var sources: [MIDISourceInfo] = []
     @Published private(set) var connectedSourceIDs: Set<Int32> = []
     @Published private(set) var lastNote: Int?
+    @Published private(set) var isRunning = false
 
     private var midiClient = MIDIClientRef()
     private var inputPort = MIDIPortRef()
@@ -42,7 +43,10 @@ final class MIDIManager: ObservableObject {
     }
 
     func start() {
-        guard midiClient == 0 else { return }
+        guard midiClient == 0 else {
+            isRunning = true
+            return
+        }
 
         MIDIClientCreateWithBlock("ImprovBuddy.MIDI" as CFString, &midiClient) { _ in }
 
@@ -57,6 +61,7 @@ final class MIDIManager: ObservableObject {
 
         refreshSources()
         connectAllSources()
+        isRunning = true
     }
 
     func stop() {
@@ -75,6 +80,7 @@ final class MIDIManager: ObservableObject {
             MIDIClientDispose(midiClient)
             midiClient = 0
         }
+        isRunning = false
     }
 
     func refreshSources() {

@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var services: ServiceContainer
 
     @State private var selectedInputMode: InputMode = .both
+    @AppStorage(TheoryPlaybackSound.defaultsKey) private var theoryPlaybackSoundRawValue = TheoryPlaybackSound.defaultValue.rawValue
 
     var body: some View {
         Form {
@@ -43,18 +44,19 @@ struct SettingsView: View {
 
             Section("Calibration") {
                 HStack {
-                    Text("A4 Reference")
-                    Slider(value: $appEnvironment.preferredA4, in: 430...450, step: 0.5)
-                    Text(String(format: "%.1f", appEnvironment.preferredA4))
-                        .frame(width: 52)
-                }
-
-                HStack {
                     Text("Analysis Sensitivity")
                     Slider(value: $appEnvironment.analysisSensitivity, in: 0...1)
                 }
+            }
 
-                Text("Temperament: Equal (MVP)")
+            Section("Theory Library") {
+                Picker("Playback Sound", selection: $theoryPlaybackSoundRawValue) {
+                    ForEach(TheoryPlaybackSound.allCases) { sound in
+                        Text(sound.displayName).tag(sound.rawValue)
+                    }
+                }
+
+                Text("Used by Play Scale, Play Chord, and Play Arpeggio.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

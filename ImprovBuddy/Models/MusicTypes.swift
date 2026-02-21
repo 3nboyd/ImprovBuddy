@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 enum FeelType: String, Codable, CaseIterable, Identifiable {
@@ -123,4 +124,139 @@ struct SessionSummaryMetrics: Codable, Hashable {
         professorNotesText: "",
         recommendedDrillIDs: []
     )
+}
+
+enum TunerTemperament: String, Codable, CaseIterable, Identifiable {
+    case equal
+    case just
+    case pythagorean
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .equal: "Equal"
+        case .just: "Just"
+        case .pythagorean: "Pythagorean"
+        }
+    }
+}
+
+struct TunerSettings: Codable, Hashable {
+    var a4Hz: Double
+    var temperament: TunerTemperament
+    var temperamentRootPitchClass: Int
+    var toneChangeSensitivity: Double
+    var confidenceGate: Double
+
+    static let `default` = TunerSettings(
+        a4Hz: 440,
+        temperament: .equal,
+        temperamentRootPitchClass: 0,
+        toneChangeSensitivity: 0.6,
+        confidenceGate: 0.55
+    )
+}
+
+struct MeterSignature: Codable, Hashable {
+    var top: Int
+    var bottom: Int
+
+    init(top: Int = 4, bottom: Int = 4) {
+        self.top = max(1, min(32, top))
+        self.bottom = (bottom == 8) ? 8 : 4
+    }
+
+    var displayName: String {
+        "\(top)/\(bottom)"
+    }
+}
+
+enum GrooveStyle: String, Codable, CaseIterable, Identifiable {
+    case rock
+    case swing
+    case funk
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .rock: "Rock"
+        case .swing: "Swing"
+        case .funk: "Funk"
+        }
+    }
+}
+
+struct MetronomeSettings: Codable, Hashable {
+    var bpm: Double
+    var meter: MeterSignature
+    var subdivision: MetronomeSubdivision
+    var countInBars: Int
+    var soundSet: MetronomeSoundSet
+    var masterVolume: Double
+    var swingAmount: Double
+    var grooveEnabled: Bool
+    var grooveStyle: GrooveStyle
+    var grooveIntensity: Double
+    var humanizeMs: Double
+    var hapticsEnabled: Bool
+
+    static let `default` = MetronomeSettings(
+        bpm: 120,
+        meter: MeterSignature(top: 4, bottom: 4),
+        subdivision: .quarter,
+        countInBars: 1,
+        soundSet: .woodblock,
+        masterVolume: 0.8,
+        swingAmount: 0.0,
+        grooveEnabled: false,
+        grooveStyle: .rock,
+        grooveIntensity: 0.6,
+        humanizeMs: 0,
+        hapticsEnabled: false
+    )
+}
+
+@MainActor
+final class ToolsSettingsStore: ObservableObject {
+    @Published var tuner: TunerSettings {
+        didSet { persist(tuner, key: Keys.tuner) }
+    }
+
+    @Published var metronome: MetronomeSettings {
+        didSet { persist(metronome, key: Keys.metronome) }
+    }
+
+    private let defaults: UserDefaults
+    private let encoder = JSONEncoder()
+
+    private enum Keys {
+        static let tuner = "tools.settings.tuner.v1"
+        static let metronome = "tools.settings.metronome.v1"
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.tuner = Self.load(defaults: defaults, key: Keys.tuner) ?? .default
+        self.metronome = Self.load(defaults: defaults, key: Keys.metronome) ?? .default
+    }
+
+    func resetTuner() {
+        tuner = .default
+    }
+
+    func resetMetronome() {
+        metronome = .default
+    }
+
+    private static func load<T: Decodable>(defaults: UserDefaults, key: String) -> T? {
+        guard let data = defaults.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func persist<T: Encodable>(_ value: T, key: String) {
+        guard let data = try? encoder.encode(value) else { return }
+        defaults.set(data, forKey: key)
+    }
 }

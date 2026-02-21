@@ -19,9 +19,11 @@ struct SongEditorView: View {
     @State private var measures: [EditableMeasure] = []
 
     @State private var showingTextImport = false
+    @State private var showingChartFileImport = false
     @State private var showingPDFPicker = false
     @State private var showingPDFPreview = false
     @State private var pdfReferencePath: String?
+    @State private var chartImportMessage = ""
 
     @State private var parseErrors: [Int] = []
 
@@ -65,6 +67,10 @@ struct SongEditorView: View {
                                 showingTextImport = true
                             }
 
+                            Button("Import File") {
+                                showingChartFileImport = true
+                            }
+
                             Button("Add Measure") {
                                 let nextIndex = measures.count
                                 measures.append(EditableMeasure(index: nextIndex, sectionLabel: nil, chordSymbol: "Cmaj7", rehearsalMark: nil))
@@ -75,6 +81,12 @@ struct SongEditorView: View {
                             Text("Chord parse warning in measures: \(parseErrors.map { String($0 + 1) }.joined(separator: ", ")).")
                                 .font(.footnote)
                                 .foregroundStyle(.orange)
+                        }
+
+                        if !chartImportMessage.isEmpty {
+                            Text(chartImportMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
@@ -163,6 +175,13 @@ struct SongEditorView: View {
                     Text("No PDF selected")
                         .padding()
                 }
+            }
+            .fileImporter(
+                isPresented: $showingChartFileImport,
+                allowedContentTypes: chartImportTypes,
+                allowsMultipleSelection: false
+            ) { result in
+                handleChartFileImport(result)
             }
             .fileImporter(
                 isPresented: $showingPDFPicker,
@@ -301,6 +320,50 @@ struct SongEditorView: View {
             print("PDF import failed: \(error)")
         }
     }
+
+    private var chartImportTypes: [UTType] {
+        var types: [UTType] = [.plainText, .utf8PlainText, .xml]
+        if let ireal = UTType(filenameExtension: "irealpro") {
+            types.append(ireal)
+        }
+        if let irealb = UTType(filenameExtension: "irealb") {
+            types.append(irealb)
+        }
+        if let musicXML = UTType(filenameExtension: "musicxml") {
+            types.append(musicXML)
+        }
+        return types
+    }
+
+    private func handleChartFileImport(_ result: Result<[URL], Error>) {
+        guard case let .success(urls) = result, let source = urls.first else { return }
+
+        _ = source.startAccessingSecurityScopedResource()
+        defer { source.stopAccessingSecurityScopedResource() }
+
+        do {
+            let data = try Data(contentsOf: source)
+            let imported = SongChartImportParser.parse(data: data, fileExtension: source.pathExtension.lowercased())
+            guard !imported.isEmpty else {
+                chartImportMessage = "No measures found in file."
+                return
+            }
+
+            measures = imported.enumerated().map { index, measure in
+                EditableMeasure(
+                    id: measure.id,
+                    index: index,
+                    sectionLabel: measure.sectionLabel,
+                    chordSymbol: measure.chordSymbol,
+                    rehearsalMark: measure.rehearsalMark
+                )
+            }
+            chartImportMessage = "Imported \(imported.count) measures."
+            validateChords()
+        } catch {
+            chartImportMessage = "Import failed: \(error.localizedDescription)"
+        }
+    }
 }
 
 private struct EditableMeasure: Identifiable, Equatable {
@@ -332,5 +395,150 @@ private struct PDFKitRepresentable: UIViewRepresentable {
 
     func updateUIView(_ uiView: PDFView, context: Context) {
         uiView.document = PDFDocument(url: url)
+    }
+}
+
+private enum SongChartImportParser {
+    static func parse(data: Data, fileExtension: String) -> [Measure] {
+        if ["xml", "musicxml"].contains(fileExtension),
+           let xmlText = decodeText(data),
+           let xmlMeasures = parseMusicXML(xmlText),
+           !xmlMeasures.isEmpty {
+            return xmlMeasures
+        }
+
+        guard let text = decodeText(data) else { return [] }
+        let irealLike = parseIRealLikeText(text)
+        if !irealLike.isEmpty {
+            return irealLike
+        }
+        return ChordParser.parseTextChart(text)
+    }
+
+    private static func decodeText(_ data: Data) -> String? {
+        if let utf8 = String(data: data, encoding: .utf8) {
+            return utf8
+        }
+        return String(data: data, encoding: .isoLatin1)
+    }
+
+    private static func parseIRealLikeText(_ text: String) -> [Measure] {
+        var normalized = text
+            .replacingOccurrences(of: "irealbook://", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        normalized = normalized.replacingOccurrences(of: ",", with: "|")
+        normalized = normalized.replacingOccurrences(of: ";", with: "|")
+        normalized = normalized.replacingOccurrences(of: "\n", with: "|")
+
+        while normalized.contains("||") {
+            normalized = normalized.replacingOccurrences(of: "||", with: "|")
+        }
+
+        let strippedSections = normalized.replacingOccurrences(
+            of: "\\[[^\\]]+\\]",
+            with: "",
+            options: .regularExpression
+        )
+
+        let tokens = strippedSections
+            .split(separator: "|")
+            .map { token in token.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !tokens.isEmpty else { return [] }
+
+        return tokens.enumerated().map { index, token in
+            Measure(index: index, chordSymbol: token, parsedChord: ChordParser.parse(symbol: token))
+        }
+    }
+
+    private static func parseMusicXML(_ xml: String) -> [Measure]? {
+        let measurePattern = #"<measure\b[^>]*>(.*?)</measure>"#
+        guard let measureRegex = try? NSRegularExpression(
+            pattern: measurePattern,
+            options: [.dotMatchesLineSeparators, .caseInsensitive]
+        ) else {
+            return nil
+        }
+
+        let ns = xml as NSString
+        let allRange = NSRange(location: 0, length: ns.length)
+        let matches = measureRegex.matches(in: xml, options: [], range: allRange)
+        guard !matches.isEmpty else { return nil }
+
+        var measures: [Measure] = []
+        for (index, match) in matches.enumerated() {
+            guard match.numberOfRanges > 1 else { continue }
+            let body = ns.substring(with: match.range(at: 1))
+            let symbol = firstHarmonySymbol(in: body) ?? "N.C."
+            measures.append(
+                Measure(index: index, chordSymbol: symbol, parsedChord: ChordParser.parse(symbol: symbol))
+            )
+        }
+
+        return measures
+    }
+
+    private static func firstHarmonySymbol(in measureBody: String) -> String? {
+        let harmonyPattern = #"<harmony\b[^>]*>(.*?)</harmony>"#
+        guard let harmonyRegex = try? NSRegularExpression(
+            pattern: harmonyPattern,
+            options: [.dotMatchesLineSeparators, .caseInsensitive]
+        ) else {
+            return nil
+        }
+
+        let ns = measureBody as NSString
+        let allRange = NSRange(location: 0, length: ns.length)
+        guard let harmonyMatch = harmonyRegex.firstMatch(in: measureBody, options: [], range: allRange),
+              harmonyMatch.numberOfRanges > 1 else {
+            return nil
+        }
+
+        let harmonyBody = ns.substring(with: harmonyMatch.range(at: 1))
+        guard let rootStep = firstMatch(in: harmonyBody, pattern: #"<root-step>\s*([A-G])\s*</root-step>"#) else {
+            return nil
+        }
+
+        let rootAlter = Int(firstMatch(in: harmonyBody, pattern: #"<root-alter>\s*(-?\d+)\s*</root-alter>"#) ?? "0") ?? 0
+        let accidental = switch rootAlter {
+        case -1: "b"
+        case 1: "#"
+        default: ""
+        }
+
+        let textKind = firstMatch(in: harmonyBody, pattern: #"<kind[^>]*text=\"([^\"]+)\""#)
+        let valueKind = firstMatch(in: harmonyBody, pattern: #"<kind[^>]*>\s*([^<]+)\s*</kind>"#)
+        let descriptor = normalizeKindDescriptor(textKind ?? valueKind ?? "")
+
+        return "\(rootStep)\(accidental)\(descriptor)"
+    }
+
+    private static func normalizeKindDescriptor(_ input: String) -> String {
+        let kind = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if kind.isEmpty || kind == "major" { return "" }
+        if kind.contains("major-seventh") || kind == "maj7" { return "maj7" }
+        if kind.contains("minor-seventh") || kind == "m7" { return "m7" }
+        if kind.contains("minor") || kind == "min" || kind == "m" { return "m" }
+        if kind.contains("dominant") || kind == "7" { return "7" }
+        if kind.contains("diminished") { return "dim" }
+        if kind.contains("half-diminished") { return "m7b5" }
+        if kind.contains("augmented") { return "aug" }
+        if kind.contains("suspended") { return "sus" }
+        return input.replacingOccurrences(of: " ", with: "")
+    }
+
+    private static func firstMatch(in text: String, pattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+        let ns = text as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        guard let match = regex.firstMatch(in: text, options: [], range: range), match.numberOfRanges > 1 else {
+            return nil
+        }
+        return ns.substring(with: match.range(at: 1))
     }
 }

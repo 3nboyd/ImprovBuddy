@@ -54,8 +54,8 @@ enum TheoryInstrumentTransposition: String, Codable, CaseIterable, Identifiable 
     var displayName: String {
         switch self {
         case .concert: "Concert"
-        case .bb: "Bb"
-        case .eb: "Eb"
+        case .bb: "B♭"
+        case .eb: "E♭"
         }
     }
 
@@ -266,6 +266,78 @@ struct TheoryResolvedOption: Identifiable, Hashable {
     var guideToneRule: GuideToneRule?
     var avoidToneRules: [AvoidToneRule]
     var voiceLeadingRules: [VoiceLeadingRule]
+}
+
+enum TheoryDisplayFormatter {
+    static func displaySymbol(_ text: String) -> String {
+        var output = text
+        output = replacingMatches(
+            in: output,
+            pattern: "([A-G])(bb|##|b|#)"
+        ) { match, source in
+            guard match.numberOfRanges >= 3 else {
+                return source.substring(with: match.range)
+            }
+            let letter = source.substring(with: match.range(at: 1))
+            let accidental = source.substring(with: match.range(at: 2))
+            return letter + displayAccidental(accidental)
+        }
+
+        output = replacingMatches(
+            in: output,
+            pattern: "(bb|##|b|#)(?=\\d)"
+        ) { match, source in
+            guard match.numberOfRanges >= 2 else {
+                return source.substring(with: match.range)
+            }
+            return displayAccidental(source.substring(with: match.range(at: 1)))
+        }
+        return output
+    }
+
+    static func normalizeForSearch(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "♭", with: "b")
+            .replacingOccurrences(of: "♯", with: "#")
+    }
+
+    private static func displayAccidental(_ accidental: String) -> String {
+        switch accidental {
+        case "bb":
+            return "♭♭"
+        case "b":
+            return "♭"
+        case "##":
+            return "♯♯"
+        case "#":
+            return "♯"
+        default:
+            return accidental
+        }
+    }
+
+    private static func replacingMatches(
+        in text: String,
+        pattern: String,
+        transform: (_ match: NSTextCheckingResult, _ source: NSString) -> String
+    ) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return text
+        }
+
+        let source = text as NSString
+        let matches = regex.matches(
+            in: text,
+            range: NSRange(location: 0, length: source.length)
+        )
+        guard !matches.isEmpty else { return text }
+
+        let mutable = NSMutableString(string: text)
+        for match in matches.reversed() {
+            mutable.replaceCharacters(in: match.range, with: transform(match, source))
+        }
+        return mutable as String
+    }
 }
 
 struct SpelledNote: Identifiable, Hashable {

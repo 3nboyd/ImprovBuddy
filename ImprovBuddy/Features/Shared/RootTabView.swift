@@ -3,7 +3,9 @@ import SwiftUI
 
 struct RootTabView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var services: ServiceContainer
     @Query(sort: \Song.title) private var songs: [Song]
+    @AppStorage("app.didRequestMicPermissionAtLaunch") private var didRequestMicPermissionAtLaunch = false
 
     var body: some View {
         TabView {
@@ -12,9 +14,9 @@ struct RootTabView: View {
                     Label("Coach", systemImage: "music.mic")
                 }
 
-            SongsListView()
+            RecorderTabView()
                 .tabItem {
-                    Label("Songs", systemImage: "music.note.list")
+                    Label("Recorder", systemImage: "waveform.badge.plus")
                 }
 
             ToolsHomeView()
@@ -22,18 +24,21 @@ struct RootTabView: View {
                     Label("Tools", systemImage: "metronome")
                 }
 
-            RecorderTabView()
-                .tabItem {
-                    Label("Recorder", systemImage: "waveform.badge.plus")
-                }
-
             TheoryTabView()
                 .tabItem {
                     Label("Library", systemImage: "books.vertical")
                 }
+
+            NavigationStack {
+                SettingsView()
+            }
+            .tabItem {
+                Label("Settings", systemImage: "gearshape")
+            }
         }
         .task {
             seedDemoSongsIfNeeded()
+            await requestMicrophonePermissionIfNeeded()
         }
     }
 
@@ -41,5 +46,12 @@ struct RootTabView: View {
         guard songs.isEmpty else { return }
         Song.demoSongs().forEach(modelContext.insert)
         try? modelContext.save()
+    }
+
+    @MainActor
+    private func requestMicrophonePermissionIfNeeded() async {
+        guard !didRequestMicPermissionAtLaunch else { return }
+        didRequestMicPermissionAtLaunch = true
+        _ = await services.audioManager.requestMicrophonePermission()
     }
 }

@@ -7,10 +7,10 @@ struct StaffView: View {
     private let lineSpacing: CGFloat = 14
     private let noteSpacing: CGFloat = 42
     private let baseCanvasHeight: CGFloat = 120
-    private let clefX: CGFloat = 26
-    private let staffLeftX: CGFloat = 44
+    private let clefX: CGFloat = 22
+    private let staffLeftX: CGFloat = 40
     private let staffRightInset: CGFloat = 12
-    private let noteStartX: CGFloat = 72
+    private let noteStartX: CGFloat = 68
 
     private var canvasHeight: CGFloat {
         let highest = notes.map(\.staffStep).max() ?? 0
@@ -56,8 +56,9 @@ struct StaffView: View {
 
                         if !note.spelled.accidental.isEmpty {
                             context.draw(
-                                Text(note.spelled.accidental).font(.caption2.monospaced()),
-                                at: CGPoint(x: x - 16, y: y - 2),
+                                Text(formattedAccidental(note.spelled.accidental))
+                                    .font(.system(size: 18, weight: .regular, design: .serif)),
+                                at: CGPoint(x: x - 18, y: y - 1),
                                 anchor: .center
                             )
                         }
@@ -73,18 +74,9 @@ struct StaffView: View {
     }
 
     private func drawClef(context: inout GraphicsContext, centerY: CGFloat) {
-        let y: CGFloat = switch clef {
-        case .treble:
-            centerY - lineSpacing
-        case .alto:
-            centerY
-        case .bass:
-            centerY + (lineSpacing * 0.4)
-        }
-
         context.draw(
-            Text(clefSymbol).font(.system(size: 44, weight: .regular, design: .serif)),
-            at: CGPoint(x: clefX, y: y),
+            Text(clefSymbol).font(.system(size: 52, weight: .regular, design: .serif)),
+            at: CGPoint(x: clefX, y: centerY),
             anchor: .center
         )
     }
@@ -134,6 +126,21 @@ struct StaffView: View {
                 context.stroke(path, with: .color(.secondary.opacity(0.7)), lineWidth: 1)
             }
             step -= 2
+        }
+    }
+
+    private func formattedAccidental(_ accidental: String) -> String {
+        switch accidental {
+        case "bb":
+            return "♭♭"
+        case "b":
+            return "♭"
+        case "##":
+            return "♯♯"
+        case "#":
+            return "♯"
+        default:
+            return accidental
         }
     }
 }

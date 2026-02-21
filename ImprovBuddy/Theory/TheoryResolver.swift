@@ -150,7 +150,7 @@ final class TheoryResolver {
             let writtenPitchClass = Chord.normalizePitchClass(
                 chord.rootPitchClass + interval + context.instrument.writtenSemitoneOffset
             )
-            return Chord.pitchClassNames[writtenPitchClass]
+            return TheoryDisplayFormatter.displaySymbol(Chord.pitchClassNames[writtenPitchClass])
         }
     }
 

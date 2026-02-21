@@ -17,7 +17,8 @@ final class CoachCoordinator: ObservableObject {
         self.services = services
         engine = CoachSessionEngine(
             eventBus: services.eventBus,
-            theoryResolver: services.theoryResolver
+            theoryResolver: services.theoryResolver,
+            metronomeEngine: services.metronomeEngine
         )
     }
 
@@ -55,6 +56,7 @@ final class CoachCoordinator: ObservableObject {
         guard let services, let engine else { return }
 
         services.audioManager.stop()
+        services.metronomeEngine.stop()
 
         if let session = engine.endSession() {
             latestSession = session

@@ -1,102 +1,242 @@
 import AVFoundation
+import AudioToolbox
 import Foundation
-import os
 
-final class SimpleSynth: ObservableObject {
-    private struct RenderState {
-        var sampleRate: Double = 44_100
-        var phase: Double = 0
-        var currentFrequency: Double = 0
-        var amplitude: Double = 0
+enum TheoryPlaybackSound: String, CaseIterable, Identifiable {
+    static let defaultsKey = "theory.playback.sound"
+
+    case grandPiano
+    case brightPiano
+    case electricPiano
+    case vibraphone
+    case nylonGuitar
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .grandPiano: "Grand Piano"
+        case .brightPiano: "Bright Piano"
+        case .electricPiano: "Electric Piano"
+        case .vibraphone: "Vibraphone"
+        case .nylonGuitar: "Nylon Guitar"
+        }
     }
 
+    var program: UInt8 {
+        switch self {
+        case .grandPiano: 0
+        case .brightPiano: 1
+        case .electricPiano: 4
+        case .vibraphone: 11
+        case .nylonGuitar: 24
+        }
+    }
+
+    static var defaultValue: TheoryPlaybackSound { .grandPiano }
+
+    static func fromDefaults(_ defaults: UserDefaults = .standard) -> TheoryPlaybackSound {
+        guard
+            let raw = defaults.string(forKey: defaultsKey),
+            let sound = TheoryPlaybackSound(rawValue: raw)
+        else {
+            return defaultValue
+        }
+        return sound
+    }
+}
+
+final class SimpleSynth: ObservableObject, @unchecked Sendable {
     private let engine = AVAudioEngine()
-    private var sourceNode: AVAudioSourceNode?
-    private let stateLock = OSAllocatedUnfairLock(initialState: RenderState())
+    private let sampler = AVAudioUnitSampler()
+    private let reverb = AVAudioUnitReverb()
+    private let defaults: UserDefaults
+    private let audioQueue = DispatchQueue(label: "com.nbz.improvbuddy.theoryPlayback", qos: .userInitiated)
+    private var loadedSound: TheoryPlaybackSound?
+    private var activeNotes = Set<UInt8>()
+    private var hasConfiguredGraph = false
+    private var scheduledPlaybackWorkItems: [DispatchWorkItem] = []
 
-    init() {
-        setupEngine()
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
     }
 
-    func playMIDINotes(_ notes: [Int], noteDuration: Double = 0.2) {
-        let lock = stateLock
-        let frequencies = notes.map { 440 * pow(2, Double($0 - 69) / 12) }
-        for (index, frequency) in frequencies.enumerated() {
-            let delay = Double(index) * noteDuration
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
-                lock.withLock { state in
-                    state.currentFrequency = frequency
-                    state.amplitude = 0.18
+    func playMIDINotes(_ notes: [Int], noteDuration: Double = 0.28, velocity: UInt8 = 90) {
+        let midiNotes = sanitize(notes)
+        guard !midiNotes.isEmpty else { return }
+
+        audioQueue.async { [weak self] in
+            guard let self else { return }
+            self.ensureEngineStartedIfNeeded()
+            self.cancelScheduledPlaybackLocked()
+            self.stopAllActiveNotesLocked()
+
+            let safeNoteDuration = max(0.08, noteDuration)
+            let hold = safeNoteDuration * 0.82
+
+            for (index, midi) in midiNotes.enumerated() {
+                let startDelay = safeNoteDuration * Double(index)
+                let stopDelay = startDelay + hold
+
+                let startWork = DispatchWorkItem { [weak self] in
+                    self?.startLocked(note: midi, velocity: velocity)
                 }
+                self.scheduledPlaybackWorkItems.append(startWork)
+                self.audioQueue.asyncAfter(deadline: .now() + startDelay, execute: startWork)
+
+                let stopWork = DispatchWorkItem { [weak self] in
+                    self?.stopLocked(note: midi)
+                }
+                self.scheduledPlaybackWorkItems.append(stopWork)
+                self.audioQueue.asyncAfter(deadline: .now() + stopDelay, execute: stopWork)
             }
         }
+    }
 
-        let stopDelay = Double(notes.count) * noteDuration
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + stopDelay) {
-            lock.withLock { state in
-                state.amplitude = 0
+    func playChordMIDINotes(_ notes: [Int], duration: Double = 0.95, velocity: UInt8 = 95) {
+        let midiNotes = sanitize(notes)
+        guard !midiNotes.isEmpty else { return }
+
+        audioQueue.async { [weak self] in
+            guard let self else { return }
+            self.ensureEngineStartedIfNeeded()
+            self.cancelScheduledPlaybackLocked()
+            self.stopAllActiveNotesLocked()
+
+            for midi in midiNotes {
+                self.startLocked(note: midi, velocity: velocity)
             }
+
+            let stopDelay = max(0.12, duration)
+            let stopWork = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                for midi in midiNotes {
+                    self.stopLocked(note: midi)
+                }
+            }
+            self.scheduledPlaybackWorkItems.append(stopWork)
+            self.audioQueue.asyncAfter(deadline: .now() + stopDelay, execute: stopWork)
         }
     }
 
     func play(frequency: Double, amplitude: Double) {
-        stateLock.withLock { state in
-            state.currentFrequency = frequency
-            state.amplitude = amplitude
-        }
+        let safeFrequency = max(20, frequency)
+        let midiFloat = 69.0 + 12.0 * log2(safeFrequency / 440.0)
+        let midi = Int(round(midiFloat))
+        let velocity = UInt8(max(24, min(127, Int(round(amplitude * 127)))))
+        playMIDINotes([midi], noteDuration: 0.26, velocity: velocity)
     }
 
     func stopTone() {
-        stateLock.withLock { state in
-            state.amplitude = 0
+        audioQueue.async { [weak self] in
+            guard let self else { return }
+            self.cancelScheduledPlaybackLocked()
+            self.stopAllActiveNotesLocked()
         }
     }
 
-    private func setupEngine() {
-        let outputFormat = engine.outputNode.outputFormat(forBus: 0)
-        stateLock.withLock { state in
-            state.sampleRate = outputFormat.sampleRate
+    private func ensureEngineStartedIfNeeded() {
+        configureGraphIfNeeded()
+        applySoundSelectionIfNeeded(force: false)
+
+        guard !engine.isRunning else { return }
+
+#if os(iOS)
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            // Best effort: engine can still start in many simulator/device states.
+        }
+#endif
+
+        do {
+            engine.prepare()
+            try engine.start()
+        } catch {
+            // Keep silent failure for UI responsiveness and to avoid crashes in edge routes.
+        }
+    }
+
+    private func configureGraphIfNeeded() {
+        guard !hasConfiguredGraph else { return }
+        hasConfiguredGraph = true
+
+        engine.attach(sampler)
+        engine.attach(reverb)
+
+        reverb.loadFactoryPreset(.mediumHall2)
+        reverb.wetDryMix = 14
+
+        engine.connect(sampler, to: reverb, format: nil)
+        engine.connect(reverb, to: engine.mainMixerNode, format: nil)
+        engine.mainMixerNode.outputVolume = 0.95
+    }
+
+    private func applySoundSelectionIfNeeded(force: Bool) {
+        let selectedSound = TheoryPlaybackSound.fromDefaults(defaults)
+        guard force || selectedSound != loadedSound else { return }
+
+        guard let bankURL = locateSoundBankURL() else {
+            loadedSound = nil
+            return
         }
 
-        sourceNode = AVAudioSourceNode { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
-            guard let self else { return noErr }
-
-            let bufferCount = Int(audioBufferList.pointee.mNumberBuffers)
-            let audioBuffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
-            let initialState = self.stateLock.withLock { $0 }
-            var phase = initialState.phase
-            let frequency = initialState.currentFrequency
-            let amplitude = initialState.amplitude
-            let sampleRate = max(1, initialState.sampleRate)
-
-            for frame in 0..<Int(frameCount) {
-                let value = Float(sin(phase) * amplitude)
-                phase += 2.0 * Double.pi * frequency / sampleRate
-                if phase > 2.0 * Double.pi {
-                    phase -= 2.0 * Double.pi
-                }
-
-                for bufferIndex in 0..<bufferCount {
-                    let pointer = audioBuffers[bufferIndex].mData?.assumingMemoryBound(to: Float.self)
-                    pointer?[frame] = value
-                }
-            }
-
-            let updatedPhase = phase
-            self.stateLock.withLock { state in
-                state.phase = updatedPhase
-            }
-
-            return noErr
+        do {
+            try sampler.loadSoundBankInstrument(
+                at: bankURL,
+                program: selectedSound.program,
+                bankMSB: UInt8(kAUSampler_DefaultMelodicBankMSB),
+                bankLSB: UInt8(kAUSampler_DefaultBankLSB)
+            )
+            loadedSound = selectedSound
+        } catch {
+            loadedSound = nil
         }
+    }
 
-        if let sourceNode {
-            engine.attach(sourceNode)
-            engine.connect(sourceNode, to: engine.mainMixerNode, format: outputFormat)
+    private func locateSoundBankURL() -> URL? {
+        let candidates = [
+            "/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls",
+            "/System/Library/Audio/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls",
+            "/System/Library/Audio/Unit Plug-Ins/Components/DLSMusicDevice.component/Contents/Resources/gs_instruments.dls"
+        ]
+
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            return URL(fileURLWithPath: path)
         }
+        return nil
+    }
 
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-        try? AVAudioSession.sharedInstance().setActive(true)
-        try? engine.start()
+    private func sanitize(_ notes: [Int]) -> [UInt8] {
+        notes.compactMap { note in
+            guard (0...127).contains(note) else { return nil }
+            return UInt8(note)
+        }
+    }
+
+    private func startLocked(note: UInt8, velocity: UInt8) {
+        sampler.startNote(note, withVelocity: velocity, onChannel: 0)
+        activeNotes.insert(note)
+    }
+
+    private func stopLocked(note: UInt8) {
+        sampler.stopNote(note, onChannel: 0)
+        activeNotes.remove(note)
+    }
+
+    private func stopAllActiveNotesLocked() {
+        for note in activeNotes {
+            sampler.stopNote(note, onChannel: 0)
+        }
+        activeNotes.removeAll()
+    }
+
+    private func cancelScheduledPlaybackLocked() {
+        for workItem in scheduledPlaybackWorkItems {
+            workItem.cancel()
+        }
+        scheduledPlaybackWorkItems.removeAll()
     }
 }

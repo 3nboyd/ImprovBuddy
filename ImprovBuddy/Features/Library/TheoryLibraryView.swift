@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 private enum TheoryBrowseMode: String, CaseIterable, Identifiable {
     case chords
@@ -29,6 +32,7 @@ private enum TheoryGridOrder: String, CaseIterable, Identifiable {
 }
 
 struct TheoryLibraryView: View {
+    @EnvironmentObject private var appEnvironment: AppEnvironment
     @EnvironmentObject private var services: ServiceContainer
     @StateObject private var synth = SimpleSynth()
 
@@ -94,13 +98,14 @@ struct TheoryLibraryView: View {
         )
 
         guard !queryText.isEmpty else { return base }
-        let query = queryText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let query = TheoryDisplayFormatter.normalizeForSearch(queryText.trimmingCharacters(in: .whitespacesAndNewlines))
+            .lowercased()
         guard !query.isEmpty else { return base }
 
         return base.filter { chord in
-            chord.name.lowercased().contains(query) ||
-            chord.family.lowercased().contains(query) ||
-            chord.symbols.contains(where: { $0.lowercased().contains(query) })
+            TheoryDisplayFormatter.normalizeForSearch(chord.name).lowercased().contains(query) ||
+            TheoryDisplayFormatter.normalizeForSearch(chord.family).lowercased().contains(query) ||
+            chord.symbols.contains(where: { TheoryDisplayFormatter.normalizeForSearch($0).lowercased().contains(query) })
         }
     }
 
@@ -111,13 +116,14 @@ struct TheoryLibraryView: View {
             .filter { selectedFamilyFilter == "All" || $0.family == selectedFamilyFilter }
 
         guard !queryText.isEmpty else { return base.sorted { $0.name < $1.name } }
-        let query = queryText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let query = TheoryDisplayFormatter.normalizeForSearch(queryText.trimmingCharacters(in: .whitespacesAndNewlines))
+            .lowercased()
         guard !query.isEmpty else { return base.sorted { $0.name < $1.name } }
 
         return base.filter { scale in
-            scale.name.lowercased().contains(query) ||
-            scale.family.lowercased().contains(query) ||
-            scale.tags.contains(where: { $0.lowercased().contains(query) })
+            TheoryDisplayFormatter.normalizeForSearch(scale.name).lowercased().contains(query) ||
+            TheoryDisplayFormatter.normalizeForSearch(scale.family).lowercased().contains(query) ||
+            scale.tags.contains(where: { TheoryDisplayFormatter.normalizeForSearch($0).lowercased().contains(query) })
         }
         .sorted { $0.name < $1.name }
     }
@@ -153,19 +159,19 @@ struct TheoryLibraryView: View {
     }
 
     private var chordAnchor: TheoryChordDefinition? {
-        orderedChords.first(where: { $0.id == selectedChordID }) ?? orderedChords.first
+        chordChoices.first(where: { $0.id == selectedChordID }) ?? chordChoices.first
     }
 
     private var scaleAnchor: TheoryScaleDefinition? {
-        orderedScales.first(where: { $0.id == selectedScaleID }) ?? orderedScales.first
+        scaleChoices.first(where: { $0.id == selectedScaleID }) ?? scaleChoices.first
     }
 
     private var similarityAnchorName: String {
         switch browseMode {
         case .chords:
-            chordAnchor?.name ?? "-"
+            TheoryDisplayFormatter.displaySymbol(chordAnchor?.name ?? "-")
         case .scales:
-            scaleAnchor?.name ?? "-"
+            TheoryDisplayFormatter.displaySymbol(scaleAnchor?.name ?? "-")
         }
     }
 
@@ -182,8 +188,12 @@ struct TheoryLibraryView: View {
                 }
             }
             .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("Theory Library")
+        .safeAreaInset(edge: .top) {
+            keyControlBar
+        }
         .onAppear {
             sanitizeFiltersForMode()
             syncSelection()
@@ -198,24 +208,28 @@ struct TheoryLibraryView: View {
         .onChange(of: queryText) { _, _ in syncSelection() }
     }
 
+    private var keyControlBar: some View {
+        HStack(spacing: 12) {
+            Picker("Browse", selection: $browseMode) {
+                ForEach(TheoryBrowseMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            KeySwipeCarousel(
+                keys: TheoryKey.all.map(\.name),
+                selectedKeyName: $selectedKeyName
+            )
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 8)
+        .background(.ultraThinMaterial)
+    }
+
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Picker("Browse", selection: $browseMode) {
-                    ForEach(TheoryBrowseMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Picker("Key", selection: $selectedKeyName) {
-                    ForEach(TheoryKey.all, id: \.name) { key in
-                        Text(key.name).tag(key.name)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -311,11 +325,31 @@ struct TheoryLibraryView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(orderedChords) { chord in
-                            chordCard(chord)
+                    let mainChord = chordAnchor ?? orderedChords[0]
+                    let supportingChords = orderedChords.filter { $0.id != mainChord.id }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Selected")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        LazyVGrid(columns: [GridItem(.flexible())], spacing: 0) {
+                            chordCard(mainChord, isPrimary: true)
+                        }
+
+                        if !supportingChords.isEmpty {
+                            Text("Related Chords")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(supportingChords) { chord in
+                                    chordCard(chord)
+                                }
+                            }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
                 if orderedScales.isEmpty {
@@ -323,33 +357,59 @@ struct TheoryLibraryView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(orderedScales) { scale in
-                            scaleCard(scale)
+                    let mainScale = scaleAnchor ?? orderedScales[0]
+                    let supportingScales = orderedScales.filter { $0.id != mainScale.id }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Selected")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        LazyVGrid(columns: [GridItem(.flexible())], spacing: 0) {
+                            scaleCard(mainScale)
+                        }
+
+                        if !supportingScales.isEmpty {
+                            Text("Related Scales")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(supportingScales) { scale in
+                                    scaleCard(scale)
+                                }
+                            }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func chordCard(_ chord: TheoryChordDefinition) -> some View {
+    private func chordCard(_ chord: TheoryChordDefinition, isPrimary: Bool = false) -> some View {
         let isSelected = chord.id == selectedChordID
+        let showFullPreview = isPrimary || isSelected
         let similarityPct = Int(round(chordSimilarity(chord) * 100))
         let chordNotes = renderedChordNotes(chord)
-        let chordLabel = compactNoteLabel(from: chordNotes)
-        let chordPitchClasses = Set(chordNotes.map(\.spelled.pitchClass))
-        let option = services.theoryResolver.options(
-            forChordID: chord.id,
-            context: context,
-            functionFilter: functionFilter,
-            sortMode: .relevance
-        ).first
+        let chordPitchClasses = Set(chord.intervals.map { interval in
+            Chord.normalizePitchClass(rootPitchClass + interval)
+        })
+        let chordLabel = compactChordToneLabel(for: chord)
+        let option = showFullPreview
+            ? services.theoryResolver.options(
+                forChordID: chord.id,
+                context: context,
+                functionFilter: functionFilter,
+                sortMode: .relevance
+            ).first
+            : nil
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(chord.name)
+                    Text(TheoryDisplayFormatter.displaySymbol(chord.name))
                         .font(.headline)
                         .lineLimit(1)
                     Text(chord.family)
@@ -372,8 +432,8 @@ struct TheoryLibraryView: View {
 
             MiniPitchClassStrip(highlightedPitchClasses: chordPitchClasses)
 
-            if let option {
-                Text("Best: \(option.primaryScale.name)")
+            if showFullPreview, let option {
+                Text("Best: \(TheoryDisplayFormatter.displaySymbol(option.primaryScale.name))")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -393,17 +453,20 @@ struct TheoryLibraryView: View {
                 )
 
                 StaffView(notes: primaryNotes, clef: selectedClef)
-                PianoStripView(highlightedPitchClasses: Set(primaryNotes.map(\.spelled.pitchClass)))
+                PianoStripView(
+                    highlightedPitchClasses: Set(primaryNotes.map(\.spelled.pitchClass)),
+                    displayNamesByPitchClass: pitchClassLabelMap(from: primaryNotes)
+                )
 
                 ViewThatFits {
                     HStack {
-                        Button("Audition") {
-                            synth.playMIDINotes(primaryNotes.map(\.spelled.midi))
+                        Button("Play Chord") {
+                            synth.playChordMIDINotes(chordNotes.map(\.spelled.midi))
                         }
                         .buttonStyle(.bordered)
 
                         if let firstArp = option.arpeggios.first {
-                            Button("Arp") {
+                            Button("Play Arpeggio") {
                                 let arpNotes = services.theoryResolver.renderedArpeggioNotes(
                                     arpeggio: firstArp,
                                     rootPitchClass: rootPitchClass,
@@ -421,13 +484,13 @@ struct TheoryLibraryView: View {
                     }
 
                     VStack(alignment: .leading) {
-                        Button("Audition") {
-                            synth.playMIDINotes(primaryNotes.map(\.spelled.midi))
+                        Button("Play Chord") {
+                            synth.playChordMIDINotes(chordNotes.map(\.spelled.midi))
                         }
                         .buttonStyle(.bordered)
 
                         if let firstArp = option.arpeggios.first {
-                            Button("Arpeggio") {
+                            Button("Play Arpeggio") {
                                 let arpNotes = services.theoryResolver.renderedArpeggioNotes(
                                     arpeggio: firstArp,
                                     rootPitchClass: rootPitchClass,
@@ -446,7 +509,7 @@ struct TheoryLibraryView: View {
                 }
 
                 if !option.alternatives.isEmpty {
-                    Text("Alternatives: \(option.alternatives.map(\.name).joined(separator: ", "))")
+                    Text("Alternatives: \(option.alternatives.map { TheoryDisplayFormatter.displaySymbol($0.name) }.joined(separator: ", "))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -457,7 +520,7 @@ struct TheoryLibraryView: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(isSelected ? Color.accentColor.opacity(0.9) : Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(isSelected ? appEnvironment.accentColor : Color.white.opacity(0.08), lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14))
         .onTapGesture {
@@ -465,6 +528,15 @@ struct TheoryLibraryView: View {
                 selectedChordID = chord.id
             }
         }
+    }
+
+    private func compactChordToneLabel(for chord: TheoryChordDefinition) -> String {
+        chord.intervals
+            .map { interval in
+                let pitchClass = Chord.normalizePitchClass(rootPitchClass + interval)
+                return TheoryDisplayFormatter.displaySymbol(Chord.pitchClassNames[pitchClass])
+            }
+            .joined(separator: " ")
     }
 
     private func scaleCard(_ scale: TheoryScaleDefinition) -> some View {
@@ -482,7 +554,7 @@ struct TheoryLibraryView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(scale.name)
+                    Text(TheoryDisplayFormatter.displaySymbol(scale.name))
                         .font(.headline)
                         .lineLimit(1)
                     Text(scale.family)
@@ -514,15 +586,18 @@ struct TheoryLibraryView: View {
                 Divider().padding(.vertical, 2)
 
                 StaffView(notes: notes, clef: selectedClef)
-                PianoStripView(highlightedPitchClasses: pitchClasses)
+                PianoStripView(
+                    highlightedPitchClasses: pitchClasses,
+                    displayNamesByPitchClass: pitchClassLabelMap(from: notes)
+                )
 
-                Button("Audition Scale") {
+                Button("Play Scale") {
                     synth.playMIDINotes(notes.map(\.spelled.midi))
                 }
                 .buttonStyle(.bordered)
 
                 if !relatedChords.isEmpty {
-                    Text("Common over: \(relatedChords.joined(separator: ", "))")
+                    Text("Common over: \(relatedChords.map(TheoryDisplayFormatter.displaySymbol).joined(separator: ", "))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -533,7 +608,7 @@ struct TheoryLibraryView: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(isSelected ? Color.accentColor.opacity(0.9) : Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(isSelected ? appEnvironment.accentColor : Color.white.opacity(0.08), lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14))
         .onTapGesture {
@@ -598,7 +673,17 @@ struct TheoryLibraryView: View {
     }
 
     private func compactNoteLabel(from notes: [StaffRenderedNote]) -> String {
-        notes.map { $0.spelled.name }.joined(separator: " ")
+        notes.map { TheoryDisplayFormatter.displaySymbol($0.spelled.name) }.joined(separator: " ")
+    }
+
+    private func pitchClassLabelMap(from notes: [StaffRenderedNote]) -> [Int: String] {
+        var map: [Int: String] = [:]
+        for note in notes {
+            if map[note.spelled.pitchClass] == nil {
+                map[note.spelled.pitchClass] = note.spelled.name
+            }
+        }
+        return map
     }
 
     private func renderedChordNotes(_ chord: TheoryChordDefinition) -> [StaffRenderedNote] {
@@ -637,6 +722,120 @@ struct TheoryLibraryView: View {
         guard !union.isEmpty else { return 1 }
         let intersection = a.intersection(b)
         return Double(intersection.count) / Double(union.count)
+    }
+
+}
+
+private struct KeySwipeCarousel: View {
+    let keys: [String]
+    @Binding var selectedKeyName: String
+
+    @State private var isSliding = false
+    @State private var anchorIndex = 0
+#if os(iOS)
+    private let feedback = UISelectionFeedbackGenerator()
+#endif
+
+    var body: some View {
+        Group {
+            if keys.isEmpty {
+                EmptyView()
+            } else {
+                let index = currentIndex
+                let previous = keys[(index - 1 + keys.count) % keys.count]
+                let next = keys[(index + 1) % keys.count]
+
+                ZStack {
+                    Capsule()
+                        .fill(Color.white.opacity(0.09))
+
+                    VStack(spacing: 1) {
+                        Text(TheoryDisplayFormatter.displaySymbol(previous))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .opacity(0.55)
+
+                        Text(TheoryDisplayFormatter.displaySymbol(selectedKeyName))
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Text(TheoryDisplayFormatter.displaySymbol(next))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .opacity(0.55)
+                    }
+                    .frame(width: 64, height: 68)
+                    .mask(
+                        RoundedRectangle(cornerRadius: 14)
+                            .padding(.vertical, -6)
+                    )
+                }
+                .frame(width: 84, height: 72)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(isSliding ? 0.22 : 0.1), lineWidth: 1)
+                )
+                .animation(.easeInOut(duration: 0.15), value: selectedKeyName)
+                .gesture(scrubGesture)
+                .accessibilityLabel("Key Carousel")
+            }
+        }
+    }
+
+    private var currentIndex: Int {
+        if let found = keys.firstIndex(of: selectedKeyName) {
+            return found
+        }
+        return 0
+    }
+
+    private var scrubGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.16)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .onChanged { value in
+                switch value {
+                case .first(true):
+                    beginSlidingIfNeeded()
+                case let .second(true, drag?):
+                    beginSlidingIfNeeded()
+                    updateSelection(with: drag.translation.height)
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in
+                isSliding = false
+            }
+    }
+
+    private func beginSlidingIfNeeded() {
+        guard !isSliding else { return }
+        anchorIndex = currentIndex
+        isSliding = true
+#if os(iOS)
+        feedback.prepare()
+#endif
+    }
+
+    private func updateSelection(with translationY: CGFloat) {
+        guard isSliding, !keys.isEmpty else { return }
+        let stepDelta = Int((-translationY / 18).rounded(.toNearestOrAwayFromZero))
+        var targetIndex = anchorIndex + stepDelta
+        while targetIndex < 0 { targetIndex += keys.count }
+        targetIndex %= keys.count
+
+        let nextKey = keys[targetIndex]
+        guard nextKey != selectedKeyName else { return }
+        selectedKeyName = nextKey
+        emitHapticTick()
+    }
+
+    private func emitHapticTick() {
+#if os(iOS)
+        feedback.selectionChanged()
+        feedback.prepare()
+#endif
     }
 }
 

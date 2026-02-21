@@ -33,8 +33,15 @@ final class CoachSessionEngine: ObservableObject {
     @Published private(set) var targetTempoBPM: Double = 120
     @Published private(set) var elapsedTime: TimeInterval = 0
     @Published private(set) var currentMeasureIndex: Int = 0
+    @Published private(set) var currentChorusIndex: Int = 0
     @Published private(set) var currentSectionLabel: String = ""
     @Published private(set) var currentChordSymbol: String = "-"
+    @Published private(set) var displayKeyName: String = TheoryKey.defaultKey.name
+    @Published private(set) var formMeasures: [Measure] = []
+    @Published private(set) var isConstantMetEnabled = false
+    @Published private(set) var metronomeSoundSet: MetronomeSoundSet = .woodblock
+    @Published private(set) var metronomeVolume: Double = 0.8
+    @Published private(set) var targetChorusCount: Int = 4
 
     @Published private(set) var liveEstimatedBPM: Double = 0
     @Published private(set) var tempoDriftState: TempoDriftState = .stable
@@ -56,9 +63,11 @@ final class CoachSessionEngine: ObservableObject {
     private var formTracker: FormPositionTracker?
     private var promptGenerator = CoachPromptGenerator()
     private let theoryResolver: TheoryResolver?
+    private let metronomeEngine: MetronomeEngine?
     private var currentTheoryContext: TheoryContext = .default
 
     private var sessionClockTask: Task<Void, Never>?
+    private var metronomeAutoStopTask: Task<Void, Never>?
     private var sessionStartUptime: TimeInterval?
     private var sessionStartDate: Date?
     private var accumulatedPausedTime: TimeInterval = 0
@@ -73,9 +82,18 @@ final class CoachSessionEngine: ObservableObject {
     private var swingSeries: [TimeValuePair] = []
     private var pitchSeries: [PitchTracePoint] = []
 
-    init(eventBus: UnifiedEventBus, theoryResolver: TheoryResolver? = nil) {
+    init(
+        eventBus: UnifiedEventBus,
+        theoryResolver: TheoryResolver? = nil,
+        metronomeEngine: MetronomeEngine? = nil
+    ) {
         self.eventBus = eventBus
         self.theoryResolver = theoryResolver
+        self.metronomeEngine = metronomeEngine
+        if let settings = metronomeEngine?.exportSettings() {
+            metronomeSoundSet = settings.soundSet
+            metronomeVolume = settings.masterVolume
+        }
         bindInputEvents()
     }
 
@@ -84,6 +102,9 @@ final class CoachSessionEngine: ObservableObject {
         config = configuration
         targetTempoBPM = configuration.targetTempoBPM
         currentTheoryContext = configuration.theoryContext
+        displayKeyName = configuration.displayKey
+        currentTheoryContext.concertKeyName = configuration.displayKey
+        formMeasures = configuration.song.flattenedForm
 
         tempoAnalyzer = TempoAnalyzer(
             targetBPM: configuration.targetTempoBPM,
@@ -107,6 +128,7 @@ final class CoachSessionEngine: ObservableObject {
         sessionStartDate = Date().addingTimeInterval(countInSeconds)
         accumulatedPausedTime = 0
 
+        startSessionMetronome(configuration: configuration, countInSeconds: countInSeconds)
         runSessionClock()
     }
 
@@ -132,6 +154,9 @@ final class CoachSessionEngine: ObservableObject {
         isPaused = false
         sessionClockTask?.cancel()
         sessionClockTask = nil
+        metronomeAutoStopTask?.cancel()
+        metronomeAutoStopTask = nil
+        metronomeEngine?.stop()
 
         let tempoSummary = tempoAnalyzer.summaryStats()
         let harmonySummary = harmonyAnalyzer.summaryStats()
@@ -191,6 +216,58 @@ final class CoachSessionEngine: ObservableObject {
 
     func restartChorus() {
         formTracker?.restartChorus(at: elapsedTime)
+    }
+
+    func setTargetChorusCount(_ count: Int) {
+        targetChorusCount = max(1, min(32, count))
+    }
+
+    func updateDisplayKeyName(_ keyName: String) {
+        guard TheoryKey.all.contains(where: { $0.name == keyName }) else { return }
+        displayKeyName = keyName
+        currentTheoryContext.concertKeyName = keyName
+        if let currentMeasure = formTracker?.currentMeasure(at: elapsedTime) {
+            currentChordSymbol = displayedChordSymbol(for: currentMeasure)
+        }
+    }
+
+    func displayedChordSymbol(for measure: Measure) -> String {
+        transposeChordSymbol(measure.chordSymbol)
+    }
+
+    func setConstantMetronomeEnabled(_ enabled: Bool) {
+        isConstantMetEnabled = enabled
+        guard let metronomeEngine else { return }
+        metronomeAutoStopTask?.cancel()
+        metronomeAutoStopTask = nil
+
+        if enabled {
+            if !metronomeEngine.isRunning {
+                var settings = metronomeEngine.exportSettings()
+                settings.countInBars = 0
+                metronomeEngine.apply(settings: settings)
+                metronomeEngine.start()
+            }
+        } else if metronomeEngine.isRunning {
+            metronomeEngine.stop()
+        }
+    }
+
+    func setMetronomeSoundSet(_ soundSet: MetronomeSoundSet) {
+        guard let metronomeEngine else { return }
+        var settings = metronomeEngine.exportSettings()
+        settings.soundSet = soundSet
+        metronomeEngine.apply(settings: settings)
+        metronomeSoundSet = soundSet
+    }
+
+    func setMetronomeVolume(_ volume: Double) {
+        guard let metronomeEngine else { return }
+        let clamped = max(0, min(1, volume))
+        var settings = metronomeEngine.exportSettings()
+        settings.masterVolume = clamped
+        metronomeEngine.apply(settings: settings)
+        metronomeVolume = clamped
     }
 
     func resetForNextSession() {
@@ -338,8 +415,147 @@ final class CoachSessionEngine: ObservableObject {
         guard let formTracker else { return }
         let position = formTracker.currentPosition(at: elapsedTime)
         currentMeasureIndex = position.measureIndex
+        currentChorusIndex = position.chorusIndex
         currentSectionLabel = position.sectionLabel ?? "-"
-        currentChordSymbol = formTracker.currentMeasure(at: elapsedTime)?.chordSymbol ?? "-"
+        if let measure = formTracker.currentMeasure(at: elapsedTime) {
+            currentChordSymbol = displayedChordSymbol(for: measure)
+        } else {
+            currentChordSymbol = "-"
+        }
+
+        if !isPaused,
+           targetChorusCount > 0,
+           position.chorusIndex + 1 >= targetChorusCount,
+           position.measureIndex == max(0, formMeasures.count - 1),
+           position.progressInMeasure >= 0.98 {
+            pause()
+            coachPrompt = "Loop target reached. Resume or increase choruses."
+        }
+    }
+
+    private func startSessionMetronome(
+        configuration: SessionConfiguration,
+        countInSeconds: TimeInterval
+    ) {
+        guard let metronomeEngine else { return }
+
+        metronomeAutoStopTask?.cancel()
+        metronomeAutoStopTask = nil
+
+        var settings = metronomeEngine.exportSettings()
+        settings.bpm = configuration.targetTempoBPM
+        settings.meter = MeterSignature(top: configuration.timeSignatureTop, bottom: configuration.timeSignatureBottom)
+        settings.subdivision = .quarter
+        settings.countInBars = barsForCountIn(
+            countInBeats: configuration.countInBeats,
+            beatsPerBar: configuration.timeSignatureTop
+        )
+        metronomeEngine.apply(settings: settings)
+        metronomeSoundSet = settings.soundSet
+        metronomeVolume = settings.masterVolume
+
+        let shouldRun = settings.countInBars > 0 || isConstantMetEnabled
+        guard shouldRun else { return }
+
+        metronomeEngine.start()
+
+        if !isConstantMetEnabled {
+            let stopDelay = max(0, countInSeconds) + 0.12
+            metronomeAutoStopTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(stopDelay * 1_000_000_000))
+                guard let self else { return }
+                guard self.isRunning, !self.isConstantMetEnabled else { return }
+                self.metronomeEngine?.stop()
+            }
+        }
+    }
+
+    private func barsForCountIn(countInBeats: Int, beatsPerBar: Int) -> Int {
+        guard countInBeats > 0 else { return 0 }
+        let barSize = max(1, beatsPerBar)
+        return max(1, Int(ceil(Double(countInBeats) / Double(barSize))))
+    }
+
+    private func transposeChordSymbol(_ symbol: String) -> String {
+        let sourceKey = TheoryKey.byName(config?.displayKey ?? TheoryKey.defaultKey.name)
+        let targetKey = TheoryKey.byName(displayKeyName)
+        let semitoneOffset = Chord.normalizePitchClass(targetKey.rootPitchClass - sourceKey.rootPitchClass)
+
+        guard semitoneOffset != 0 else {
+            return TheoryDisplayFormatter.displaySymbol(symbol)
+        }
+
+        let raw = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return symbol }
+
+        let parts = raw.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        guard let head = parts.first else {
+            return TheoryDisplayFormatter.displaySymbol(symbol)
+        }
+
+        guard let (rootToken, descriptor) = splitRootToken(from: head),
+              let rootPitchClass = pitchClass(for: rootToken) else {
+            return TheoryDisplayFormatter.displaySymbol(symbol)
+        }
+
+        let preferSharps = TheoryKey.byName(displayKeyName).rootAccidental == "#"
+        let transposedRoot = noteName(
+            for: rootPitchClass + semitoneOffset,
+            preferSharps: preferSharps
+        )
+
+        var result = transposedRoot + descriptor
+
+        if parts.count > 1, let bassPitchClass = pitchClass(for: parts[1]) {
+            let transposedBass = noteName(
+                for: bassPitchClass + semitoneOffset,
+                preferSharps: preferSharps
+            )
+            result += "/\(transposedBass)"
+        }
+
+        return TheoryDisplayFormatter.displaySymbol(result)
+    }
+
+    private func splitRootToken(from text: String) -> (String, String)? {
+        guard let first = text.first, ("A"..."G").contains(String(first).uppercased()) else {
+            return nil
+        }
+
+        var root = String(first).uppercased()
+        var remainder = String(text.dropFirst())
+
+        if let accidental = remainder.first, accidental == "#" || accidental == "b" {
+            root.append(accidental)
+            remainder = String(remainder.dropFirst())
+        }
+
+        return (root, remainder)
+    }
+
+    private func pitchClass(for note: String) -> Int? {
+        switch note.lowercased() {
+        case "c": return 0
+        case "c#", "db": return 1
+        case "d": return 2
+        case "d#", "eb": return 3
+        case "e", "fb": return 4
+        case "f", "e#": return 5
+        case "f#", "gb": return 6
+        case "g": return 7
+        case "g#", "ab": return 8
+        case "a": return 9
+        case "a#", "bb": return 10
+        case "b", "cb": return 11
+        default: return nil
+        }
+    }
+
+    private func noteName(for pitchClass: Int, preferSharps: Bool) -> String {
+        let normalized = Chord.normalizePitchClass(pitchClass)
+        let sharpNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        let flatNames = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+        return preferSharps ? sharpNames[normalized] : flatNames[normalized]
     }
 
     private func resetSessionState() {
@@ -350,8 +566,12 @@ final class CoachSessionEngine: ObservableObject {
 
         elapsedTime = 0
         currentMeasureIndex = 0
+        currentChorusIndex = 0
         currentSectionLabel = ""
         currentChordSymbol = "-"
+        displayKeyName = TheoryKey.defaultKey.name
+        formMeasures = []
+        targetChorusCount = 4
 
         liveEstimatedBPM = 0
         tempoDriftState = .stable
@@ -376,6 +596,9 @@ final class CoachSessionEngine: ObservableObject {
         sessionStartDate = nil
         accumulatedPausedTime = 0
         pauseStartedUptime = nil
+        metronomeAutoStopTask?.cancel()
+        metronomeAutoStopTask = nil
+        metronomeEngine?.stop()
         lastMidiOnsetTime = -100
         lastMidiPitchTime = -100
         currentTheoryContext = .default

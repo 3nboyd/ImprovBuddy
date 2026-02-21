@@ -31,15 +31,6 @@ struct SongsListView: View {
                     }
                     .accessibilityLabel("New Song")
                 }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Settings")
-                }
             }
             .sheet(isPresented: $showingCreateSheet) {
                 SongEditorView(song: nil)
