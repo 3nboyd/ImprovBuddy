@@ -3,6 +3,14 @@ import SwiftData
 
 @Model
 final class Song {
+    static let defaultTagSuggestions: [String] = [
+        "practice",
+        "jazz",
+        "big band",
+        "standards",
+        "misc"
+    ]
+
     var id: UUID
     var createdAt: Date
     var updatedAt: Date

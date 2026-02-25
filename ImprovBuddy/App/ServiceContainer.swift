@@ -11,6 +11,8 @@ enum ToolOverlayKind: String, Codable, CaseIterable, Identifiable {
 enum OverlayCorner: String, Codable, CaseIterable, Identifiable {
     case topLeft
     case topRight
+    case middleLeft
+    case middleRight
     case bottomLeft
     case bottomRight
 
@@ -25,7 +27,7 @@ struct ToolOverlayPreferences: Codable, Hashable {
     var isVisible: Bool
 
     static let tunerDefault = ToolOverlayPreferences(
-        corner: .topRight,
+        corner: .topLeft,
         offsetX: 0,
         offsetY: 0,
         isExpanded: false,
@@ -33,7 +35,7 @@ struct ToolOverlayPreferences: Codable, Hashable {
     )
 
     static let bpmDefault = ToolOverlayPreferences(
-        corner: .bottomLeft,
+        corner: .topRight,
         offsetX: 0,
         offsetY: 0,
         isExpanded: false,
@@ -61,8 +63,18 @@ final class ToolOverlayPreferencesStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.tuner = Self.load(defaults: defaults, key: Keys.tuner) ?? .tunerDefault
-        self.bpm = Self.load(defaults: defaults, key: Keys.bpm) ?? .bpmDefault
+        let loadedTuner: ToolOverlayPreferences? = Self.load(defaults: defaults, key: Keys.tuner)
+        let loadedBPM: ToolOverlayPreferences? = Self.load(defaults: defaults, key: Keys.bpm)
+
+        self.tuner = loadedTuner ?? .tunerDefault
+        self.bpm = loadedBPM ?? .bpmDefault
+
+        // Migrate users who never customized overlays from legacy defaults:
+        // old tuner=topRight, old bpm=bottomLeft.
+        if loadedTuner == .legacyTunerDefault, loadedBPM == .legacyBPMDefault {
+            self.tuner = .tunerDefault
+            self.bpm = .bpmDefault
+        }
     }
 
     func reset() {
@@ -79,6 +91,24 @@ final class ToolOverlayPreferencesStore: ObservableObject {
         guard let data = try? encoder.encode(value) else { return }
         defaults.set(data, forKey: key)
     }
+}
+
+private extension ToolOverlayPreferences {
+    static let legacyTunerDefault = ToolOverlayPreferences(
+        corner: .topRight,
+        offsetX: 0,
+        offsetY: 0,
+        isExpanded: false,
+        isVisible: true
+    )
+
+    static let legacyBPMDefault = ToolOverlayPreferences(
+        corner: .bottomLeft,
+        offsetX: 0,
+        offsetY: 0,
+        isExpanded: false,
+        isVisible: true
+    )
 }
 
 @MainActor

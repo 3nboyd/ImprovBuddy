@@ -301,6 +301,14 @@ enum MetronomeSoundSet: String, CaseIterable, Codable, Identifiable {
     case sidestick
     case triangle
     case analogPulse
+    case beep
+    case pip
+    case block
+    case snap
+    case bongo
+    case conga
+    case cabasa
+    case clap
 
     var id: String { rawValue }
 
@@ -317,6 +325,14 @@ enum MetronomeSoundSet: String, CaseIterable, Codable, Identifiable {
         case .sidestick: "Side Stick"
         case .triangle: "Triangle"
         case .analogPulse: "Analog Pulse"
+        case .beep: "Beep"
+        case .pip: "Pip"
+        case .block: "Block"
+        case .snap: "Snap"
+        case .bongo: "Bongo"
+        case .conga: "Conga"
+        case .cabasa: "Cabasa"
+        case .clap: "Clap"
         }
     }
 
@@ -333,6 +349,14 @@ enum MetronomeSoundSet: String, CaseIterable, Codable, Identifiable {
         case .sidestick: 1500
         case .triangle: 3100
         case .analogPulse: 1360
+        case .beep: 1840
+        case .pip: 2460
+        case .block: 1320
+        case .snap: 1680
+        case .bongo: 420
+        case .conga: 320
+        case .cabasa: 3920
+        case .clap: 2150
         }
     }
 }
@@ -358,6 +382,7 @@ final class MetronomeEngine: ObservableObject {
     var grooveIntensity: Double = 0.6
     var humanizeMs: Double = 0
     var hapticsEnabled = false
+    var subdivisionUsesAlternateClick = true
 
     private struct VoiceSpec {
         var frequency: Double
@@ -416,6 +441,7 @@ final class MetronomeEngine: ObservableObject {
         grooveIntensity = clamp(settings.grooveIntensity, min: 0, max: 1)
         humanizeMs = clamp(settings.humanizeMs, min: 0, max: 25)
         hapticsEnabled = settings.hapticsEnabled
+        subdivisionUsesAlternateClick = settings.subdivisionUsesAlternateClick
 
         refreshSoundSet()
         refreshPattern()
@@ -438,7 +464,8 @@ final class MetronomeEngine: ObservableObject {
             grooveStyle: grooveStyle,
             grooveIntensity: grooveIntensity,
             humanizeMs: humanizeMs,
-            hapticsEnabled: hapticsEnabled
+            hapticsEnabled: hapticsEnabled,
+            subdivisionUsesAlternateClick: subdivisionUsesAlternateClick
         )
     }
 
@@ -731,10 +758,11 @@ final class MetronomeEngine: ObservableObject {
     }
 
     private func triggerClick(isDownbeat: Bool, offbeat: Bool = false) {
-        let spec = clickVoiceSpec(isDownbeat: isDownbeat, offbeat: offbeat)
+        let useAlternateSubdivisionSound = offbeat && subdivisionUsesAlternateClick
+        let spec = clickVoiceSpec(isDownbeat: isDownbeat, offbeat: useAlternateSubdivisionSound)
         let accent: Double
         if offbeat {
-            accent = 0.4
+            accent = subdivisionUsesAlternateClick ? 0.4 : 0.55
         } else {
             accent = isDownbeat ? 1.0 : 0.72
         }
@@ -877,6 +905,70 @@ final class MetronomeEngine: ObservableObject {
                 durationSeconds: offbeat ? 0.03 : 0.045,
                 decaySeconds: offbeat ? 0.016 : 0.024,
                 noiseMix: 0.08
+            )
+        case .beep:
+            return VoiceSpec(
+                frequency: isDownbeat ? 2060 : (offbeat ? 1640 : 1840),
+                amplitude: isDownbeat ? 0.88 : (offbeat ? 0.42 : 0.64),
+                durationSeconds: offbeat ? 0.03 : 0.044,
+                decaySeconds: offbeat ? 0.014 : 0.021,
+                noiseMix: 0.0
+            )
+        case .pip:
+            return VoiceSpec(
+                frequency: isDownbeat ? 2740 : (offbeat ? 2240 : 2460),
+                amplitude: isDownbeat ? 0.78 : (offbeat ? 0.36 : 0.58),
+                durationSeconds: offbeat ? 0.02 : 0.032,
+                decaySeconds: offbeat ? 0.01 : 0.015,
+                noiseMix: 0.02
+            )
+        case .block:
+            return VoiceSpec(
+                frequency: isDownbeat ? 1560 : (offbeat ? 1120 : 1320),
+                amplitude: isDownbeat ? 0.94 : (offbeat ? 0.46 : 0.7),
+                durationSeconds: offbeat ? 0.04 : 0.062,
+                decaySeconds: offbeat ? 0.019 : 0.03,
+                noiseMix: 0.09
+            )
+        case .snap:
+            return VoiceSpec(
+                frequency: isDownbeat ? 1880 : (offbeat ? 1460 : 1680),
+                amplitude: isDownbeat ? 0.8 : (offbeat ? 0.42 : 0.62),
+                durationSeconds: offbeat ? 0.024 : 0.038,
+                decaySeconds: offbeat ? 0.01 : 0.015,
+                noiseMix: 0.44
+            )
+        case .bongo:
+            return VoiceSpec(
+                frequency: isDownbeat ? 470 : (offbeat ? 360 : 420),
+                amplitude: isDownbeat ? 0.92 : (offbeat ? 0.52 : 0.7),
+                durationSeconds: offbeat ? 0.052 : 0.08,
+                decaySeconds: offbeat ? 0.028 : 0.044,
+                noiseMix: 0.15
+            )
+        case .conga:
+            return VoiceSpec(
+                frequency: isDownbeat ? 360 : (offbeat ? 280 : 320),
+                amplitude: isDownbeat ? 0.94 : (offbeat ? 0.54 : 0.72),
+                durationSeconds: offbeat ? 0.056 : 0.088,
+                decaySeconds: offbeat ? 0.03 : 0.048,
+                noiseMix: 0.12
+            )
+        case .cabasa:
+            return VoiceSpec(
+                frequency: isDownbeat ? 4250 : (offbeat ? 3520 : 3920),
+                amplitude: isDownbeat ? 0.74 : (offbeat ? 0.48 : 0.61),
+                durationSeconds: offbeat ? 0.034 : 0.052,
+                decaySeconds: offbeat ? 0.013 : 0.019,
+                noiseMix: 0.92
+            )
+        case .clap:
+            return VoiceSpec(
+                frequency: isDownbeat ? 2420 : (offbeat ? 1880 : 2150),
+                amplitude: isDownbeat ? 0.84 : (offbeat ? 0.44 : 0.64),
+                durationSeconds: offbeat ? 0.028 : 0.05,
+                decaySeconds: offbeat ? 0.012 : 0.021,
+                noiseMix: 0.72
             )
         }
     }

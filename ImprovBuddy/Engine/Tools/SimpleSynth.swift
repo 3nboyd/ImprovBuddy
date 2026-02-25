@@ -127,12 +127,28 @@ final class SimpleSynth: ObservableObject, @unchecked Sendable {
         playMIDINotes([midi], noteDuration: 0.26, velocity: velocity)
     }
 
-    func stopTone() {
+    func startSustainedMIDINote(_ note: Int, velocity: UInt8 = 96) {
+        guard let midi = sanitize([note]).first else { return }
+
+        audioQueue.async { [weak self] in
+            guard let self else { return }
+            self.ensureEngineStartedIfNeeded()
+            self.cancelScheduledPlaybackLocked()
+            self.stopAllActiveNotesLocked()
+            self.startLocked(note: midi, velocity: velocity)
+        }
+    }
+
+    func stopSustainedMIDINote() {
         audioQueue.async { [weak self] in
             guard let self else { return }
             self.cancelScheduledPlaybackLocked()
             self.stopAllActiveNotesLocked()
         }
+    }
+
+    func stopTone() {
+        stopSustainedMIDINote()
     }
 
     private func ensureEngineStartedIfNeeded() {

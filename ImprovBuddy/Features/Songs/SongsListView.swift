@@ -47,7 +47,9 @@ struct SongTagCatalog: Equatable {
             .map(Song.normalizedTag)
             .filter { !$0.isEmpty }
 
-        let allSorted = Array(Set(all)).sorted()
+        let knownDefaults = Song.defaultTagSuggestions.map(Song.normalizedTag)
+        let dynamicTags = Array(Set(all)).sorted()
+        let allSorted = knownDefaults + dynamicTags.filter { !knownDefaults.contains($0) }
         let filteredRecent = recentTags
             .map(Song.normalizedTag)
             .filter { allSorted.contains($0) }
@@ -296,7 +298,9 @@ struct SongTagManagerSheet: View {
     @State private var renameDrafts: [String: String] = [:]
 
     private var allTags: [String] {
-        Array(Set(songs.flatMap(\.tags))).sorted()
+        let knownDefaults = Song.defaultTagSuggestions.map(Song.normalizedTag)
+        let dynamicTags = Array(Set(songs.flatMap(\.tags).map(Song.normalizedTag))).sorted()
+        return knownDefaults + dynamicTags.filter { !knownDefaults.contains($0) }
     }
 
     var body: some View {
@@ -366,6 +370,7 @@ struct SongTagManagerSheet: View {
 
 struct SongsWorkspaceView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var appEnvironment: AppEnvironment
     @Query(sort: \Song.updatedAt, order: .reverse) private var songs: [Song]
 
     @StateObject private var recentTagsStore = SongTagRecentsStore()
@@ -605,7 +610,7 @@ struct SongsWorkspaceView: View {
                             } label: {
                                 Label("Tags", systemImage: "tag")
                             }
-                            .tint(.cyan)
+                            .tint(appEnvironment.accentColor)
                         }
                 }
             }
@@ -621,11 +626,11 @@ struct SongsWorkspaceView: View {
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selected ? Color.accentColor.opacity(0.3) : Color.white.opacity(0.08))
+                        .fill(selected ? appEnvironment.accentColor.opacity(0.3) : Color.white.opacity(0.08))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(selected ? Color.accentColor : Color.white.opacity(0.1), lineWidth: 1)
+                        .stroke(selected ? appEnvironment.accentColor : Color.white.opacity(0.1), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
@@ -778,11 +783,51 @@ private struct SongDetailPagerView: View {
 }
 
 private struct SongDetailPage: View {
-    let song: Song
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var song: Song
 
-    var pdfURL: URL? {
+    @State private var isChordFormExpanded = true
+    @State private var showingPDFAttachPicker = false
+    @State private var pdfAttachMessage = ""
+
+    private let chordGridColumns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
+
+    private var pdfURL: URL? {
         guard let raw = song.pdfReferencePath else { return nil }
         return URL(string: raw)
+    }
+
+    private var groupedForm: [SongFormSectionGroup] {
+        let ordered = song.flattenedForm
+        guard !ordered.isEmpty else { return [] }
+
+        var groups: [SongFormSectionGroup] = []
+        var currentMeasures: [Measure] = []
+        var currentLabel = "Form"
+        var groupIndex = 0
+
+        for measure in ordered {
+            let explicitLabel = measure.sectionLabel?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let nextLabel = (explicitLabel?.isEmpty == false ? explicitLabel : nil) ?? currentLabel
+
+            if currentMeasures.isEmpty {
+                currentLabel = nextLabel
+            } else if nextLabel != currentLabel {
+                groups.append(SongFormSectionGroup(id: groupIndex, label: currentLabel, measures: currentMeasures))
+                groupIndex += 1
+                currentMeasures.removeAll(keepingCapacity: true)
+                currentLabel = nextLabel
+            }
+
+            currentMeasures.append(measure)
+        }
+
+        if !currentMeasures.isEmpty {
+            groups.append(SongFormSectionGroup(id: groupIndex, label: currentLabel, measures: currentMeasures))
+        }
+
+        return groups
     }
 
     var body: some View {
@@ -815,23 +860,49 @@ private struct SongDetailPage: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Chord Form")
-                        .font(.headline)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(song.flattenedForm, id: \.id) { measure in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(measure.index + 1)")
-                                        .font(.caption2.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                    Text(measure.chordSymbol)
-                                        .font(.subheadline.weight(.semibold))
-                                        .lineLimit(1)
+                    DisclosureGroup(isExpanded: $isChordFormExpanded) {
+                        if groupedForm.isEmpty {
+                            Text("No chord form added.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 8)
+                        } else {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(groupedForm) { group in
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(group.label)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+
+                                        LazyVGrid(columns: chordGridColumns, alignment: .leading, spacing: 8) {
+                                            ForEach(group.measures, id: \.id) { measure in
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text("\(measure.index + 1)")
+                                                        .font(.caption2.monospacedDigit())
+                                                        .foregroundStyle(.secondary)
+                                                    Text(measure.chordSymbol)
+                                                        .font(.subheadline.weight(.semibold))
+                                                        .lineLimit(1)
+                                                        .minimumScaleFactor(0.75)
+                                                }
+                                                .padding(10)
+                                                .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+                                                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            }
+                                        }
+                                    }
                                 }
-                                .padding(10)
-                                .frame(width: 84, height: 62, alignment: .topLeading)
-                                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
+                            .padding(.top, 8)
+                        }
+                    } label: {
+                        HStack {
+                            Text("Chord Form")
+                                .font(.headline)
+                            Spacer()
+                            Text("\(song.flattenedForm.count) bars")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -839,19 +910,77 @@ private struct SongDetailPage: View {
                 if let pdfURL {
                     SongPDFSwipePreview(url: pdfURL)
                 } else {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
-                        .frame(height: 220)
-                        .overlay {
-                            Text("No PDF attached")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            showingPDFAttachPicker = true
+                        } label: {
+                            Label("Attach a PDF", systemImage: "paperclip")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+
+                        if !pdfAttachMessage.isEmpty {
+                            Text(pdfAttachMessage)
+                                .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                    .padding(.top, 4)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
+            .padding(.bottom, 12)
+        }
+        .fileImporter(
+            isPresented: $showingPDFAttachPicker,
+            allowedContentTypes: [.pdf],
+            allowsMultipleSelection: false
+        ) { result in
+            attachPDF(result)
         }
     }
+
+    private func attachPDF(_ result: Result<[URL], Error>) {
+        guard case let .success(urls) = result, let source = urls.first else { return }
+
+        guard let destinationFolder = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)
+            .first?
+            .appendingPathComponent("SongPDFs", isDirectory: true) else {
+            pdfAttachMessage = "PDF attach failed: Missing documents directory."
+            return
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
+            let destination = destinationFolder.appendingPathComponent("\(UUID().uuidString)-\(source.lastPathComponent)")
+
+            _ = source.startAccessingSecurityScopedResource()
+            defer { source.stopAccessingSecurityScopedResource() }
+
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+
+            try FileManager.default.copyItem(at: source, to: destination)
+
+            song.pdfReferencePath = destination.absoluteString
+            song.touch()
+            try? modelContext.save()
+            pdfAttachMessage = ""
+        } catch {
+            pdfAttachMessage = "PDF attach failed: \(error.localizedDescription)"
+        }
+    }
+}
+
+private struct SongFormSectionGroup: Identifiable {
+    let id: Int
+    let label: String
+    let measures: [Measure]
 }
 
 private struct SongPDFSwipePreview: View {

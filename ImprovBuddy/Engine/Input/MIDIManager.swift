@@ -48,12 +48,12 @@ final class MIDIManager: ObservableObject {
             return
         }
 
-        MIDIClientCreateWithBlock("ImprovBuddy.MIDI" as CFString, &midiClient) { _ in }
+        MIDIClientCreateWithBlock("Jade.MIDI" as CFString, &midiClient) { _ in }
 
         let selfPointer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
         MIDIInputPortCreate(
             midiClient,
-            "ImprovBuddy.Input" as CFString,
+            "Jade.Input" as CFString,
             midiReadProc,
             selfPointer,
             &inputPort

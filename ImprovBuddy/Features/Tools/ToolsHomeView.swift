@@ -11,6 +11,8 @@ struct ToolsHomeView: View {
 struct ToolsStudioView: View {
     @EnvironmentObject private var services: ServiceContainer
 
+    @StateObject private var tunerPreviewSynth = SimpleSynth()
+
     @State private var showTunerSettings = false
     @State private var showMetronomeSettings = false
     @State private var didBootstrapInputs = false
@@ -19,10 +21,17 @@ struct ToolsStudioView: View {
     @State private var lastHapticStep = Int(round(MetronomeSettings.default.bpm))
     @State private var lastAudibleVolume = MetronomeSettings.default.masterVolume
     @State private var activeDropUp: BottomDropUpMenu?
+    @State private var bpmEntryText = ""
+    @State private var tunerHeldMIDINote: Int?
+    @State private var tunerSustainedMIDINote: Int?
+    @State private var keyboardHeight: CGFloat = 0
+    @FocusState private var isBPMFieldFocused: Bool
 
     @State private var micLease: AudioUsageCoordinator.LeaseToken?
     @State private var midiLease: AudioUsageCoordinator.LeaseToken?
+    private let bottomControlPopupClearance: CGFloat = 98
     private let bpmFeedback = UIImpactFeedbackGenerator(style: .rigid)
+    private let sustainFeedback = UIImpactFeedbackGenerator(style: .soft)
     private let meterPresets: [MeterSignature] = [
         MeterSignature(top: 2, bottom: 4),
         MeterSignature(top: 3, bottom: 4),
@@ -33,6 +42,32 @@ struct ToolsStudioView: View {
         MeterSignature(top: 9, bottom: 8),
         MeterSignature(top: 12, bottom: 8)
     ]
+    private var beatsPerBar: Int { max(1, services.metronomeEngine.meter.top) }
+    private var stepsPerBeat: Int { max(1, services.metronomeEngine.subdivision.rawValue) }
+    private var totalStepsPerBar: Int { beatsPerBar * stepsPerBeat }
+    private var visualStepInBar: Int {
+        guard totalStepsPerBar > 0 else { return 0 }
+        if services.metronomeEngine.isRunning {
+            return max(0, services.metronomeEngine.currentStep - 1) % totalStepsPerBar
+        }
+        return 0
+    }
+    private var countInBeatsPerRow: Int { max(1, services.metronomeEngine.meter.top) }
+    private var countInTotalBeats: Int { max(0, services.metronomeEngine.countInBars * countInBeatsPerRow) }
+    private var countInCompletedBeats: Int {
+        guard countInTotalBeats > 0 else { return 0 }
+        let stepsPerBeat = max(1, services.metronomeEngine.subdivision.rawValue)
+        let completed = (max(0, services.metronomeEngine.currentStep) + stepsPerBeat - 1) / stepsPerBeat
+        return min(countInTotalBeats, completed)
+    }
+    private var shouldShowCountInOverlay: Bool {
+        services.metronomeEngine.isCountInActive && countInTotalBeats > 0
+    }
+    private var contentLiftOffset: CGFloat {
+        guard isBPMFieldFocused else { return 0 }
+        let dynamicLift = max(138, min(232, keyboardHeight * 0.56))
+        return -dynamicLift
+    }
 
     private var tunerSettingsBinding: Binding<TunerSettings> {
         Binding(
@@ -78,6 +113,27 @@ struct ToolsStudioView: View {
                 studioSurface
                 bottomControlRow
             }
+            .offset(y: contentLiftOffset)
+            .animation(.spring(response: 0.28, dampingFraction: 0.88), value: isBPMFieldFocused)
+
+            VStack {
+                HStack {
+                    Spacer()
+                    topTrailingToolsRail
+                }
+                Spacer()
+            }
+
+            if shouldShowCountInOverlay {
+                CountInDotsOverlay(
+                    beatsPerRow: countInBeatsPerRow,
+                    totalBeats: countInTotalBeats,
+                    completedBeats: countInCompletedBeats
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .animation(.easeOut(duration: 0.15), value: countInCompletedBeats)
+                .allowsHitTesting(false)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -95,17 +151,47 @@ struct ToolsStudioView: View {
             }
             .presentationDetents([.medium, .large])
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    commitBPMEntry()
+                    isBPMFieldFocused = false
+                }
+            }
+        }
         .task {
             await bootstrapInputsIfNeeded()
         }
         .onAppear {
             displayedBPM = services.metronomeEngine.bpm
+            bpmEntryText = "\(Int(round(displayedBPM)))"
             lastHapticStep = Int(round(displayedBPM))
             lastAudibleVolume = max(0.05, services.metronomeEngine.masterVolume)
             bpmFeedback.prepare()
+            sustainFeedback.prepare()
         }
         .onChange(of: services.metronomeEngine.bpm) { _, newValue in
             displayedBPM = newValue
+            if !isBPMFieldFocused {
+                bpmEntryText = "\(Int(round(newValue)))"
+            }
+        }
+        .onChange(of: isBPMFieldFocused) { _, focused in
+            if !focused {
+                commitBPMEntry()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
+            guard
+                let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+            else {
+                return
+            }
+            keyboardHeight = max(0, frame.height)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardHeight = 0
         }
         .onChange(of: services.metronomeEngine.beatPulseID) { _, _ in
             guard services.metronomeEngine.isRunning else { return }
@@ -123,10 +209,13 @@ struct ToolsStudioView: View {
             services.liveTempoAnalyzer.stop()
             services.audioUsageCoordinator.release(micLease)
             services.audioUsageCoordinator.release(midiLease)
+            tunerPreviewSynth.stopSustainedMIDINote()
             micLease = nil
             midiLease = nil
             didBootstrapInputs = false
             activeDropUp = nil
+            tunerHeldMIDINote = nil
+            tunerSustainedMIDINote = nil
         }
     }
 
@@ -135,7 +224,6 @@ struct ToolsStudioView: View {
             tunerSection
                 .frame(minHeight: 194)
             metronomeSection
-            analysisSection
         }
     }
 
@@ -146,23 +234,26 @@ struct ToolsStudioView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-
-                Button {
-                    showTunerSettings = true
-                } label: {
-                    Image(systemName: "tuningfork")
-                        .font(.body.weight(.bold))
-                        .frame(width: 40, height: 40)
-                        .background(Color.white.opacity(0.1), in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Tuner Settings")
             }
 
             HStack(alignment: .center, spacing: 16) {
                 PitchAccuracyRing(
                     cents: services.tunerEngine.cents,
-                    confidence: services.tunerEngine.confidence
+                    confidence: services.tunerEngine.confidence,
+                    detectedMIDINote: services.tunerEngine.midiNote,
+                    isSustainActive: tunerSustainedMIDINote != nil,
+                    onHoldStart: { note in
+                        beginTunerPreviewHold(note: note)
+                    },
+                    onHoldEnd: {
+                        endTunerPreviewHold()
+                    },
+                    onSustainSwipeUp: { note in
+                        latchTunerSustain(note: note)
+                    },
+                    onToggleSustain: {
+                        toggleTunerSustain()
+                    }
                 )
                 .frame(width: 144, height: 144)
 
@@ -187,12 +278,39 @@ struct ToolsStudioView: View {
         }
     }
 
+    private var topTrailingToolsRail: some View {
+        VStack(spacing: 10) {
+            Button {
+                showTunerSettings = true
+            } label: {
+                Image(systemName: "tuningfork")
+                    .font(.body.weight(.bold))
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(0.1), in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Tuner Settings")
+
+            VerticalVolumeRail(
+                volume: services.metronomeEngine.masterVolume,
+                onVolumeAdjust: { value in
+                    applyVolume(value)
+                }
+            )
+        }
+        .padding(.top, 4)
+    }
+
     private var metronomeSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Text("\(Int(round(displayedBPM))) BPM")
-                    .font(.title2.weight(.bold))
-                    .monospacedDigit()
+                Text("Metronome")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
                 Circle()
                     .fill(Color.accentColor)
@@ -220,11 +338,13 @@ struct ToolsStudioView: View {
                     Image(systemName: "slider.horizontal.3")
                         .font(.footnote.weight(.bold))
                         .frame(width: 34, height: 34)
-                        .background(Color.white.opacity(0.1), in: Circle())
+                        .background(Color.accentColor.opacity(0.2), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Metronome Settings")
             }
+
+            metronomeVisualCounter
 
             PrecisionTempoSlider(
                 value: displayedBPM,
@@ -238,31 +358,49 @@ struct ToolsStudioView: View {
 
             HStack(spacing: 12) {
                 DropUpActionButton(
-                    icon: "music.note.list",
-                    title: services.metronomeEngine.soundSet.displayName,
-                    isActive: activeDropUp == .sound
+                    icon: "hand.tap.fill",
+                    title: "Tap Tempo"
                 ) {
-                    toggleDropUp(.sound)
+                    activeDropUp = nil
+                    if let tappedBPM = services.metronomeEngine.registerTapTempo() {
+                        handleBPMChange(tappedBPM)
+                    }
                 }
                 .frame(maxWidth: .infinity)
-                .overlay(alignment: .top) {
-                    if activeDropUp == .sound {
-                        columnOverlayMenu(for: .sound)
-                            .offset(y: -218)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
-                .zIndex(activeDropUp == .sound ? 20 : 0)
 
-                VolumeGestureChip(
-                    volume: services.metronomeEngine.masterVolume,
-                    onToggleMute: {
-                        toggleMute()
-                    },
-                    onVolumeAdjust: { value in
-                        applyVolume(value)
-                    }
+                VStack(spacing: 4) {
+                    TextField("BPM", text: $bpmEntryText)
+                        .focused($isBPMFieldFocused)
+                        .keyboardType(.numberPad)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .font(.system(size: 34, weight: .heavy, design: .rounded))
+                        .monospacedDigit()
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .onTapGesture {
+                            isBPMFieldFocused = true
+                        }
+                    Text("BPM")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 88)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.14))
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(isBPMFieldFocused ? Color.accentColor.opacity(0.85) : Color.accentColor.opacity(0.36), lineWidth: 1)
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isBPMFieldFocused = true
+                }
                 .frame(maxWidth: .infinity)
 
                 Button(action: toggleMetronome) {
@@ -288,45 +426,75 @@ struct ToolsStudioView: View {
         }
     }
 
-    private var analysisSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var metronomeVisualCounter: some View {
+        let currentBeat = visualStepInBar / stepsPerBeat
+        let currentSubStep = visualStepInBar % stepsPerBeat
+
+        return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("BPM Analysis")
-                    .font(.caption.weight(.semibold))
+                Text("Pulse \(services.metronomeEngine.meter.displayName) • \(services.metronomeEngine.subdivision.notationSymbol)")
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
-
                 Spacer()
-
-                Button {
-                    toggleLiveTempoAnalyzer()
-                } label: {
-                    Text(services.liveTempoAnalyzer.isRunning ? "Stop" : "Start")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                Text("Beat \(min(beatsPerBar, currentBeat + 1))/\(beatsPerBar)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 8) {
-                LiveMetricTile(
-                    title: "Auto",
-                    value: String(format: "%.1f", services.liveTempoAnalyzer.autoBPM),
-                    unit: "BPM"
-                )
-                LiveMetricTile(
-                    title: "Error",
-                    value: String(format: "%.1f", services.liveTempoAnalyzer.latestErrorMs),
-                    unit: "ms"
-                )
-                LiveMetricTile(
-                    title: "Input",
-                    value: services.liveTempoAnalyzer.lastOnsetSource?.rawValue.uppercased() ?? "-",
-                    unit: services.liveTempoAnalyzer.driftState == .stable ? "Stable" : "Drift"
-                )
+            HStack(spacing: 10) {
+                ForEach(0..<beatsPerBar, id: \.self) { beatIndex in
+                    beatProgressTile(
+                        beatIndex: beatIndex,
+                        currentBeat: currentBeat,
+                        currentSubStep: currentSubStep
+                    )
+                }
             }
         }
+    }
+
+    private func beatProgressTile(
+        beatIndex: Int,
+        currentBeat: Int,
+        currentSubStep: Int
+    ) -> some View {
+        let isRunning = services.metronomeEngine.isRunning
+        let isPastBeat = beatIndex < currentBeat
+        let isCurrentBeat = isRunning && beatIndex == currentBeat
+        let completedSubsteps: Int
+
+        if isPastBeat {
+            completedSubsteps = stepsPerBeat
+        } else if isCurrentBeat {
+            completedSubsteps = min(stepsPerBeat, currentSubStep + 1)
+        } else {
+            completedSubsteps = 0
+        }
+
+        return HStack(spacing: 2) {
+            ForEach(0..<stepsPerBeat, id: \.self) { subdivisionStep in
+                Rectangle()
+                    .fill(
+                        subdivisionStep < completedSubsteps
+                            ? Color.accentColor.opacity(isCurrentBeat ? 0.98 : 0.84)
+                            : Color.accentColor.opacity(0.16)
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .padding(4)
+        .frame(maxWidth: .infinity)
+        .frame(height: 64)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.accentColor.opacity(isCurrentBeat ? 0.2 : 0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.accentColor.opacity(isCurrentBeat ? 0.82 : 0.3), lineWidth: 1)
+        )
+        .scaleEffect(beatFlash && isCurrentBeat ? 1.02 : 1)
+        .animation(.easeOut(duration: 0.12), value: beatFlash)
     }
 
     private var bottomControlRow: some View {
@@ -339,10 +507,10 @@ struct ToolsStudioView: View {
             ) {
                 toggleDropUp(.meter)
             }
-            .overlay(alignment: .top) {
+            .overlay(alignment: .bottom) {
                 if activeDropUp == .meter {
                     columnOverlayMenu(for: .meter)
-                        .offset(y: -208)
+                        .offset(y: -bottomControlPopupClearance)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -357,25 +525,31 @@ struct ToolsStudioView: View {
             ) {
                 toggleDropUp(.subdivision)
             }
-            .overlay(alignment: .top) {
+            .overlay(alignment: .bottom) {
                 if activeDropUp == .subdivision {
                     columnOverlayMenu(for: .subdivision)
-                        .offset(y: -182)
+                        .offset(y: -bottomControlPopupClearance)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .zIndex(activeDropUp == .subdivision ? 20 : 0)
 
             BottomSquareControlButton(
-                icon: "hand.tap.fill",
-                title: "Tap Tempo",
-                detail: "\(Int(round(displayedBPM)))"
+                icon: "music.note.list",
+                title: "Sound",
+                detail: services.metronomeEngine.soundSet.displayName,
+                isActive: activeDropUp == .sound
             ) {
-                activeDropUp = nil
-                if let tappedBPM = services.metronomeEngine.registerTapTempo() {
-                    handleBPMChange(tappedBPM)
+                toggleDropUp(.sound)
+            }
+            .overlay(alignment: .bottom) {
+                if activeDropUp == .sound {
+                    columnOverlayMenu(for: .sound)
+                        .offset(y: -bottomControlPopupClearance)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .zIndex(activeDropUp == .sound ? 20 : 0)
 
             BottomSquareControlButton(
                 icon: "countdown",
@@ -385,10 +559,10 @@ struct ToolsStudioView: View {
             ) {
                 toggleDropUp(.countIn)
             }
-            .overlay(alignment: .top) {
+            .overlay(alignment: .bottom) {
                 if activeDropUp == .countIn {
                     columnOverlayMenu(for: .countIn)
-                        .offset(y: -182)
+                        .offset(y: -bottomControlPopupClearance)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -435,25 +609,30 @@ struct ToolsStudioView: View {
                     }
                 }
             case .sound:
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 6) {
-                        ForEach(MetronomeSoundSet.allCases) { soundSet in
-                            overlayOptionButton(
-                                label: soundSet.displayName,
-                                selected: soundSet == services.metronomeEngine.soundSet
-                            ) {
-                                updateMetronomeSettings { settings in
-                                    settings.soundSet = soundSet
-                                }
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 6),
+                        GridItem(.flexible(), spacing: 6),
+                        GridItem(.flexible(), spacing: 6)
+                    ],
+                    spacing: 6
+                ) {
+                    ForEach(MetronomeSoundSet.allCases) { soundSet in
+                        overlayOptionButton(
+                            label: soundSet.displayName,
+                            selected: soundSet == services.metronomeEngine.soundSet,
+                            compact: true
+                        ) {
+                            updateMetronomeSettings { settings in
+                                settings.soundSet = soundSet
                             }
                         }
                     }
                 }
-                .frame(maxHeight: 176)
             }
         }
         .padding(8)
-        .frame(width: kind == .sound ? 132 : 118)
+        .frame(width: kind == .sound ? 300 : 118)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -465,6 +644,7 @@ struct ToolsStudioView: View {
         label: String,
         selected: Bool,
         largeSymbol: Bool = false,
+        compact: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -474,14 +654,18 @@ struct ToolsStudioView: View {
             }
         } label: {
             Text(label)
-                .font(largeSymbol ? .title3.weight(.semibold) : .caption.weight(.semibold))
+                .font(
+                    largeSymbol
+                        ? .title3.weight(.semibold)
+                        : (compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
+                )
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, largeSymbol ? 10 : 8)
+                .padding(.vertical, largeSymbol ? 10 : (compact ? 6 : 8))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(selected ? Color.accentColor.opacity(0.86) : Color.white.opacity(0.1))
+                        .fill(selected ? Color.accentColor.opacity(0.9) : Color.accentColor.opacity(0.16))
                 )
         }
         .buttonStyle(.plain)
@@ -490,15 +674,6 @@ struct ToolsStudioView: View {
     private func toggleDropUp(_ menu: BottomDropUpMenu) {
         withAnimation(.easeOut(duration: 0.16)) {
             activeDropUp = activeDropUp == menu ? nil : menu
-        }
-    }
-
-    private func toggleLiveTempoAnalyzer() {
-        if services.liveTempoAnalyzer.isRunning {
-            services.liveTempoAnalyzer.stop()
-        } else {
-            services.liveTempoAnalyzer.targetBPM = services.metronomeEngine.bpm
-            services.liveTempoAnalyzer.start()
         }
     }
 
@@ -523,6 +698,18 @@ struct ToolsStudioView: View {
             bpmFeedback.prepare()
             lastHapticStep = rounded
         }
+    }
+
+    private func commitBPMEntry() {
+        let cleaned = bpmEntryText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .filter { $0.isNumber || $0 == "." }
+        guard !cleaned.isEmpty, let value = Double(cleaned) else {
+            bpmEntryText = "\(Int(round(displayedBPM)))"
+            return
+        }
+        handleBPMChange(value)
+        bpmEntryText = "\(Int(round(displayedBPM)))"
     }
 
     private func syncMetronomeBPMToSettings(from bpm: Double) {
@@ -555,6 +742,45 @@ struct ToolsStudioView: View {
         var settings = services.toolsSettings.metronome
         mutate(&settings)
         services.toolsSettings.metronome = settings
+    }
+
+    private func beginTunerPreviewHold(note: Int) {
+        tunerHeldMIDINote = note
+        tunerPreviewSynth.startSustainedMIDINote(note)
+    }
+
+    private func endTunerPreviewHold() {
+        tunerHeldMIDINote = nil
+        if let sustained = tunerSustainedMIDINote {
+            tunerPreviewSynth.startSustainedMIDINote(sustained)
+        } else {
+            tunerPreviewSynth.stopSustainedMIDINote()
+        }
+    }
+
+    private func latchTunerSustain(note: Int) {
+        tunerSustainedMIDINote = note
+        tunerPreviewSynth.startSustainedMIDINote(note)
+        sustainFeedback.impactOccurred(intensity: 0.8)
+        sustainFeedback.prepare()
+    }
+
+    private func toggleTunerSustain() {
+        if tunerSustainedMIDINote != nil {
+            tunerSustainedMIDINote = nil
+            if let held = tunerHeldMIDINote {
+                tunerPreviewSynth.startSustainedMIDINote(held)
+            } else {
+                tunerPreviewSynth.stopSustainedMIDINote()
+            }
+            sustainFeedback.impactOccurred(intensity: 0.65)
+            sustainFeedback.prepare()
+            return
+        }
+
+        if let note = tunerHeldMIDINote ?? services.tunerEngine.midiNote {
+            latchTunerSustain(note: note)
+        }
     }
 
     private func centsColor(_ cents: Double) -> Color {
@@ -612,7 +838,7 @@ struct PrecisionTempoSlider: View {
 
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.white.opacity(0.12))
+                    .fill(Color.accentColor.opacity(0.16))
 
                 Capsule()
                     .fill(
@@ -679,6 +905,19 @@ struct PrecisionTempoSlider: View {
 private struct PitchAccuracyRing: View {
     let cents: Double
     let confidence: Double
+    let detectedMIDINote: Int?
+    let isSustainActive: Bool
+    let onHoldStart: (Int) -> Void
+    let onHoldEnd: () -> Void
+    let onSustainSwipeUp: (Int) -> Void
+    let onToggleSustain: () -> Void
+
+    @State private var isHolding = false
+    @State private var activeHoldMIDINote: Int?
+    @State private var holdStartPoint: CGPoint = .zero
+    @State private var touchStartPoint: CGPoint = .zero
+    @State private var touchStartDate: Date?
+    @State private var didTriggerSustainSwipe = false
 
     private var normalizedAccuracy: Double {
         max(0, min(1, 1 - abs(cents) / 35))
@@ -694,6 +933,10 @@ private struct PitchAccuracyRing: View {
         case 0.45..<0.75: .yellow
         default: .red
         }
+    }
+
+    private var shouldShowSustainBadge: Bool {
+        isHolding || isSustainActive
     }
 
     var body: some View {
@@ -719,91 +962,237 @@ private struct PitchAccuracyRing: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(tintColor)
             }
-        }
-    }
-}
 
-private struct VolumeGestureChip: View {
-    let volume: Double
-    let onToggleMute: () -> Void
-    let onVolumeAdjust: (Double) -> Void
-
-    @State private var showOverlay = false
-    @State private var dragStartY: CGFloat = 0
-    @State private var dragStartVolume: Double = 0
-    @State private var dragStartDate: Date?
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            VStack(spacing: 6) {
-                Image(systemName: volume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .font(.title3.weight(.bold))
-                Text(volume <= 0.001 ? "Muted" : "\(Int(round(volume * 100)))%")
-                    .lineLimit(1)
-            }
-            .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity)
-            .frame(height: 88)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity(0.1))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.accentColor.opacity(showOverlay ? 0.65 : 0.12), lineWidth: 1)
-            )
-
-            if showOverlay {
-                VStack(spacing: 6) {
-                    Text("\(Int(round(volume * 100)))%")
-                        .font(.caption.monospacedDigit())
-                    GeometryReader { geo in
-                        ZStack(alignment: .bottom) {
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Color.white.opacity(0.18))
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Color.accentColor)
-                                .frame(height: geo.size.height * max(0.02, volume))
+            if shouldShowSustainBadge {
+                TopInnerSemicircle()
+                    .fill(isSustainActive ? Color.accentColor.opacity(0.94) : Color.white.opacity(0.18))
+                    .frame(width: 88, height: 44)
+                    .overlay(
+                        TopInnerSemicircle()
+                            .stroke(isSustainActive ? Color.accentColor : Color.white.opacity(0.28), lineWidth: 1)
+                    )
+                    .overlay {
+                        VStack(spacing: 1) {
+                            Text("Sustain")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(isSustainActive ? Color.white : Color.primary)
+                            if isHolding && !isSustainActive {
+                                Text("swipe up")
+                                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(isSustainActive ? Color.white.opacity(0.9) : Color.primary.opacity(0.8))
+                            }
                         }
+                        .padding(.top, 6)
                     }
-                    .frame(width: 12, height: 72)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .offset(y: -116)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .offset(y: -42)
             }
         }
-        .contentShape(Rectangle())
+        .contentShape(Circle())
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { gesture in
-                    if dragStartDate == nil {
-                        dragStartDate = Date()
-                        dragStartY = gesture.location.y
-                        dragStartVolume = volume
+                    if touchStartDate == nil {
+                        touchStartDate = Date()
+                        touchStartPoint = gesture.location
                     }
 
-                    guard let startDate = dragStartDate else { return }
-                    let elapsed = Date().timeIntervalSince(startDate)
-                    guard elapsed > 0.18 else { return }
+                    if !isHolding {
+                        if isSustainActive {
+                            let elapsed = touchStartDate.map { Date().timeIntervalSince($0) } ?? 0
+                            let moved = hypot(
+                                gesture.location.x - touchStartPoint.x,
+                                gesture.location.y - touchStartPoint.y
+                            )
+                            if elapsed < 0.14 && moved < 8 {
+                                return
+                            }
+                        }
 
-                    showOverlay = true
-                    let delta = Double((dragStartY - gesture.location.y) / 130)
-                    let next = max(0, min(1, dragStartVolume + delta))
-                    onVolumeAdjust(next)
+                        guard let note = detectedMIDINote else { return }
+                        isHolding = true
+                        activeHoldMIDINote = note
+                        holdStartPoint = gesture.location
+                        didTriggerSustainSwipe = false
+                        onHoldStart(note)
+                    }
+
+                    guard
+                        isHolding,
+                        !didTriggerSustainSwipe,
+                        let note = activeHoldMIDINote
+                    else { return }
+
+                    let upwardDelta = holdStartPoint.y - gesture.location.y
+                    if upwardDelta >= 18 {
+                        didTriggerSustainSwipe = true
+                        onSustainSwipeUp(note)
+                    }
                 }
-                .onEnded { gesture in
-                    let elapsed = dragStartDate.map { Date().timeIntervalSince($0) } ?? 0
-                    let moved = hypot(gesture.translation.width, gesture.translation.height)
-                    if elapsed < 0.18 && moved < 8 {
-                        onToggleMute()
+                .onEnded { _ in
+                    if isHolding {
+                        isHolding = false
+                        activeHoldMIDINote = nil
+                        didTriggerSustainSwipe = false
+                        onHoldEnd()
+                    } else if isSustainActive {
+                        let elapsed = touchStartDate.map { Date().timeIntervalSince($0) } ?? 0
+                        if elapsed <= 0.35 {
+                            onToggleSustain()
+                        }
                     }
-                    dragStartDate = nil
-                    showOverlay = false
-                },
+
+                    touchStartDate = nil
+                    touchStartPoint = .zero
+                    holdStartPoint = .zero
+                    didTriggerSustainSwipe = false
+                }
         )
+    }
+}
+
+private struct TopInnerSemicircle: Shape {
+    func path(in rect: CGRect) -> Path {
+        let radius = min(rect.width, rect.height * 2) * 0.5
+        let center = CGPoint(x: rect.midX, y: rect.maxY)
+
+        var path = Path()
+        path.addArc(center: center, radius: radius, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        path.addLine(to: CGPoint(x: center.x + radius, y: rect.maxY))
+        path.addLine(to: CGPoint(x: center.x - radius, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct VerticalVolumeRail: View {
+    let volume: Double
+    let onVolumeAdjust: (Double) -> Void
+
+    @State private var dragStartValue: Double?
+    @State private var dragStartLocation: CGPoint = .zero
+
+    var body: some View {
+        VStack(spacing: 6) {
+            GeometryReader { geo in
+                let railHeight = geo.size.height
+                let trackWidth: CGFloat = 10
+                let thumbDiameter: CGFloat = 12
+                let activeHeight = max(thumbDiameter, railHeight * max(0.02, volume))
+
+                ZStack(alignment: .bottom) {
+                    Capsule(style: .continuous)
+                        .fill(Color.white.opacity(0.1))
+                        .frame(width: trackWidth)
+
+                    Capsule(style: .continuous)
+                        .fill(Color.accentColor.opacity(0.82))
+                        .frame(width: trackWidth, height: railHeight)
+                        .mask(alignment: .bottom) {
+                            Rectangle()
+                                .frame(width: trackWidth, height: activeHeight)
+                        }
+
+                    Circle()
+                        .fill(.white)
+                        .frame(width: thumbDiameter, height: thumbDiameter)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.black.opacity(0.12), lineWidth: 0.5)
+                        )
+                        .offset(y: -(activeHeight - thumbDiameter * 0.5))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { gesture in
+                            if dragStartValue == nil {
+                                dragStartValue = volume
+                                dragStartLocation = gesture.location
+                            }
+                            guard let startValue = dragStartValue else { return }
+                            let delta = Double((dragStartLocation.y - gesture.location.y) / max(1, railHeight))
+                            let next = max(0, min(1, startValue + delta))
+                            onVolumeAdjust(next)
+                        }
+                        .onEnded { _ in
+                            dragStartValue = nil
+                        }
+                )
+            }
+            .frame(width: 20, height: 78)
+
+            Text("\(Int(round(volume * 100)))")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+
+            Image(systemName: volume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.7)
+        )
+    }
+}
+
+private struct CountInDotsOverlay: View {
+    let beatsPerRow: Int
+    let totalBeats: Int
+    let completedBeats: Int
+
+    private var rows: [[Int]] {
+        let safePerRow = max(1, beatsPerRow)
+        let all = Array(0..<max(0, totalBeats))
+        guard !all.isEmpty else { return [] }
+
+        var result: [[Int]] = []
+        var index = 0
+        while index < all.count {
+            let end = min(all.count, index + safePerRow)
+            result.append(Array(all[index..<end]))
+            index = end
+        }
+        return result
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Count-In")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 12) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 12) {
+                        ForEach(row, id: \.self) { dotIndex in
+                            Circle()
+                                .fill(dotIndex < completedBeats ? Color.accentColor : Color.clear)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.accentColor.opacity(0.85), lineWidth: 1.4)
+                                )
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 26)
+        .padding(.vertical, 20)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.22), radius: 10, y: 6)
     }
 }
 
@@ -823,20 +1212,21 @@ private struct BottomSquareControlButton: View {
                 Text(title)
                     .font(.caption.weight(.semibold))
                 Text(detail)
-                    .font(symbolOnlyDetail ? .title3.weight(.semibold) : .callout.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .font(symbolOnlyDetail ? .title3.weight(.semibold) : .caption.weight(.semibold))
+                    .lineLimit(symbolOnlyDetail ? 1 : 2)
+                    .minimumScaleFactor(0.62)
+                    .multilineTextAlignment(.center)
             }
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity)
             .frame(height: 90)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isActive ? Color.accentColor.opacity(0.24) : Color.white.opacity(0.1))
+                    .fill(isActive ? Color.accentColor.opacity(0.28) : Color.accentColor.opacity(0.14))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isActive ? Color.accentColor.opacity(0.65) : Color.white.opacity(0.07), lineWidth: 1)
+                    .stroke(isActive ? Color.accentColor.opacity(0.8) : Color.accentColor.opacity(0.24), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -864,11 +1254,11 @@ private struct DropUpActionButton: View {
             .frame(height: 88)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isActive ? Color.accentColor.opacity(0.24) : Color.white.opacity(0.1))
+                    .fill(isActive ? Color.accentColor.opacity(0.28) : Color.accentColor.opacity(0.14))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isActive ? Color.accentColor.opacity(0.65) : Color.white.opacity(0.07), lineWidth: 1)
+                    .stroke(isActive ? Color.accentColor.opacity(0.8) : Color.accentColor.opacity(0.24), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -968,6 +1358,8 @@ struct MetronomeSettingsSheet: View {
                     }
 
                     Stepper("Count-in Bars: \(settings.countInBars)", value: $settings.countInBars, in: 0...4)
+
+                    Toggle("Different Subdivision Sound", isOn: $settings.subdivisionUsesAlternateClick)
 
                     Picker("Sound", selection: $settings.soundSet) {
                         ForEach(MetronomeSoundSet.allCases) { set in

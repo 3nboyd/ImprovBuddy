@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class TunerEngine: ObservableObject {
     @Published private(set) var noteName: String = "-"
+    @Published private(set) var midiNote: Int?
     @Published private(set) var cents: Double = 0
     @Published private(set) var confidence: Double = 0
     @Published private(set) var isStable = false
@@ -32,6 +33,7 @@ final class TunerEngine: ObservableObject {
         confidence = max(0, min(1, event.confidence))
         guard confidence >= settings.confidenceGate else {
             isStable = false
+            midiNote = nil
             return
         }
 
@@ -44,6 +46,7 @@ final class TunerEngine: ObservableObject {
         }
 
         lockedMidiNote = candidate
+        midiNote = candidate
 
         let rawDeviation = (midi - Double(candidate)) * 100
         let relativePitchClass = Chord.normalizePitchClass(candidate - settings.temperamentRootPitchClass)

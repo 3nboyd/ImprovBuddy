@@ -7,7 +7,7 @@ struct HelpView: View {
                 Group {
                     Text("Chord Forms")
                         .font(.headline)
-                    Text("ImprovBuddy follows the chord form you provide. It does not require automatic chord detection.")
+                    Text("Jade follows the chord form you provide. It does not require automatic chord detection.")
 
                     Text("Scoring")
                         .font(.headline)
@@ -29,7 +29,7 @@ struct HelpView: View {
 
                     Text("Privacy")
                         .font(.headline)
-                    Text("ImprovBuddy is local-first and runs analysis on-device. No login is required.")
+                    Text("Jade is local-first and runs analysis on-device. No login is required.")
                 }
             }
             .padding()

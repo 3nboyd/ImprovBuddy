@@ -78,3 +78,38 @@ final class LibraryItem {
         self.recorderMetronomeReferenceData = CodableBlob.encode(recorderMetronomeReference)
     }
 }
+
+private enum RecorderItemTag {
+    static let deleted = "__jade_recorder_deleted"
+    static let pinned = "__jade_recorder_pinned"
+}
+
+extension LibraryItem {
+    var isRecorderDeleted: Bool {
+        get { hasRecorderTag(RecorderItemTag.deleted) }
+        set { setRecorderTag(RecorderItemTag.deleted, enabled: newValue) }
+    }
+
+    var isRecorderPinned: Bool {
+        get { hasRecorderTag(RecorderItemTag.pinned) }
+        set { setRecorderTag(RecorderItemTag.pinned, enabled: newValue) }
+    }
+
+    private func hasRecorderTag(_ tag: String) -> Bool {
+        let needle = normalizedTag(tag)
+        return tags.contains(where: { normalizedTag($0) == needle })
+    }
+
+    private func setRecorderTag(_ tag: String, enabled: Bool) {
+        let needle = normalizedTag(tag)
+        var next = tags.filter { normalizedTag($0) != needle }
+        if enabled {
+            next.append(tag)
+        }
+        tags = next
+    }
+
+    private func normalizedTag(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}

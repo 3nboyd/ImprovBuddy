@@ -16,7 +16,7 @@ settings:
     INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
-    INFOPLIST_KEY_NSMicrophoneUsageDescription: ImprovBuddy uses your microphone to analyze time feel and pitch.
+    INFOPLIST_KEY_NSMicrophoneUsageDescription: Jade uses your microphone to analyze time feel and pitch.
     INFOPLIST_KEY_UIFileSharingEnabled: YES
     INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
 configs:
@@ -38,6 +38,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.nbz.ImprovBuddy
         CODE_SIGN_STYLE: Automatic
         CODE_SIGNING_ALLOWED: NO
+        INFOPLIST_KEY_CFBundleDisplayName: Jade
+        INFOPLIST_KEY_CFBundleName: Jade
+        INFOPLIST_KEY_NSCameraUsageDescription: Jade uses your camera when you enable video recording for idea capture.
         SUPPORTS_MACCATALYST: YES
         MACOSX_DEPLOYMENT_TARGET: 15.0
         DEVELOPMENT_ASSET_PATHS: ImprovBuddy/Resources

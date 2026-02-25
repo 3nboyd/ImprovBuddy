@@ -50,8 +50,8 @@ struct TheoryLibraryView: View {
     @State private var gridOrder: TheoryGridOrder = .similarity
     @State private var queryText = ""
     @State private var showAdvancedFilters = false
-
-    @State private var feedbackMessage = ""
+    @State private var scrollY: CGFloat = 0
+    @State private var scrollOriginY: CGFloat?
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -175,26 +175,48 @@ struct TheoryLibraryView: View {
         }
     }
 
+    private var effectiveScrollDistance: CGFloat {
+        guard let origin = scrollOriginY else { return 0 }
+        return max(0, origin - scrollY)
+    }
+
+    private var shouldShowTopBlur: Bool {
+        effectiveScrollDistance > 10
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(
+                            key: TheoryScrollOffsetPreferenceKey.self,
+                            value: proxy.frame(in: .named("theoryLibraryScroll")).minY
+                        )
+                }
+                .frame(height: 0)
+
                 headerSection
                 browserSection
-
-                if !feedbackMessage.isEmpty {
-                    Text(feedbackMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .coordinateSpace(name: "theoryLibraryScroll")
         .navigationTitle("Theory Library")
         .safeAreaInset(edge: .top) {
             keyControlBar
         }
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .toolbarBackground(shouldShowTopBlur ? .visible : .hidden, for: .navigationBar)
+        .onPreferenceChange(TheoryScrollOffsetPreferenceKey.self) { value in
+            if scrollOriginY == nil {
+                scrollOriginY = value
+            }
+            scrollY = value
+        }
         .onAppear {
+            scrollOriginY = nil
             sanitizeFiltersForMode()
             syncSelection()
         }
@@ -209,23 +231,46 @@ struct TheoryLibraryView: View {
     }
 
     private var keyControlBar: some View {
-        HStack(spacing: 12) {
-            Picker("Browse", selection: $browseMode) {
-                ForEach(TheoryBrowseMode.allCases) { mode in
-                    Text(mode.displayName).tag(mode)
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Picker("Browse", selection: $browseMode) {
+                    ForEach(TheoryBrowseMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
+                .pickerStyle(.segmented)
 
-            KeySwipeCarousel(
-                keys: TheoryKey.all.map(\.name),
-                selectedKeyName: $selectedKeyName
+                KeySwipeCarousel(
+                    keys: TheoryKey.all.map(\.name),
+                    selectedKeyName: $selectedKeyName
+                )
+            }
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.ultraThinMaterial)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 0.8)
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+            .padding(.bottom, 6)
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .padding(.bottom, 8)
-        .background(.ultraThinMaterial)
+        .frame(maxWidth: .infinity)
+        .background {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Color.black.opacity(0.07))
+                .opacity(shouldShowTopBlur ? 1 : 0)
+                .ignoresSafeArea(edges: .top)
+        }
+        .overlay(alignment: .bottom) {
+            Divider()
+                .opacity(shouldShowTopBlur ? 0.22 : 0)
+        }
+        .animation(.easeOut(duration: 0.18), value: shouldShowTopBlur)
     }
 
     private var headerSection: some View {
@@ -476,11 +521,6 @@ struct TheoryLibraryView: View {
                             }
                             .buttonStyle(.bordered)
                         }
-
-                        Button("Send") {
-                            queueDrill(from: option)
-                        }
-                        .buttonStyle(.borderedProminent)
                     }
 
                     VStack(alignment: .leading) {
@@ -500,11 +540,6 @@ struct TheoryLibraryView: View {
                             }
                             .buttonStyle(.bordered)
                         }
-
-                        Button("Send to Drill") {
-                            queueDrill(from: option)
-                        }
-                        .buttonStyle(.borderedProminent)
                     }
                 }
 
@@ -623,18 +658,8 @@ struct TheoryLibraryView: View {
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color.accentColor.opacity(0.2), in: Capsule())
-            .foregroundStyle(Color.accentColor)
-    }
-
-    private func queueDrill(from option: TheoryResolvedOption) {
-        for id in option.recommendation.recommendedDrillIDs {
-            if let drill = DrillTemplate.mvpTemplates.first(where: { $0.id == id }) {
-                feedbackMessage = "Queued drill: \(drill.title)"
-                return
-            }
-        }
-        feedbackMessage = "No mapped drill available for this recommendation."
+            .background(appEnvironment.accentColor.opacity(0.2), in: Capsule())
+            .foregroundStyle(appEnvironment.accentColor)
     }
 
     private func sanitizeFiltersForMode() {
@@ -727,6 +752,8 @@ struct TheoryLibraryView: View {
 }
 
 private struct KeySwipeCarousel: View {
+    @EnvironmentObject private var appEnvironment: AppEnvironment
+
     let keys: [String]
     @Binding var selectedKeyName: String
 
@@ -747,35 +774,31 @@ private struct KeySwipeCarousel: View {
 
                 ZStack {
                     Capsule()
-                        .fill(Color.white.opacity(0.09))
+                        .fill(appEnvironment.accentColor.opacity(isSliding ? 0.24 : 0.14))
 
                     VStack(spacing: 1) {
                         Text(TheoryDisplayFormatter.displaySymbol(previous))
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .opacity(0.55)
+                            .foregroundStyle(appEnvironment.accentColor.opacity(0.64))
+                            .opacity(0.75)
 
                         Text(TheoryDisplayFormatter.displaySymbol(selectedKeyName))
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(appEnvironment.accentColor)
                             .lineLimit(1)
 
                         Text(TheoryDisplayFormatter.displaySymbol(next))
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .opacity(0.55)
+                            .foregroundStyle(appEnvironment.accentColor.opacity(0.64))
+                            .opacity(0.75)
                     }
-                    .frame(width: 64, height: 68)
+                    .frame(width: 58, height: 60)
                     .mask(
                         RoundedRectangle(cornerRadius: 14)
-                            .padding(.vertical, -6)
+                            .padding(.vertical, -5)
                     )
                 }
-                .frame(width: 84, height: 72)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.white.opacity(isSliding ? 0.22 : 0.1), lineWidth: 1)
-                )
+                .frame(width: 78, height: 66)
                 .animation(.easeInOut(duration: 0.15), value: selectedKeyName)
                 .gesture(scrubGesture)
                 .accessibilityLabel("Key Carousel")
@@ -839,14 +862,24 @@ private struct KeySwipeCarousel: View {
     }
 }
 
+private struct TheoryScrollOffsetPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 private struct MiniPitchClassStrip: View {
+    @EnvironmentObject private var appEnvironment: AppEnvironment
+
     let highlightedPitchClasses: Set<Int>
 
     var body: some View {
         HStack(spacing: 3) {
             ForEach(0..<12, id: \.self) { pitchClass in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(highlightedPitchClasses.contains(pitchClass) ? Color.accentColor : Color.white.opacity(0.14))
+                    .fill(highlightedPitchClasses.contains(pitchClass) ? appEnvironment.accentColor : Color.white.opacity(0.14))
                     .frame(height: 6)
             }
         }

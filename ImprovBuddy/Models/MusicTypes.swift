@@ -211,6 +211,53 @@ struct MetronomeSettings: Codable, Hashable {
     var grooveIntensity: Double
     var humanizeMs: Double
     var hapticsEnabled: Bool
+    var subdivisionUsesAlternateClick: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case bpm
+        case meter
+        case subdivision
+        case countInBars
+        case soundSet
+        case masterVolume
+        case swingAmount
+        case grooveEnabled
+        case grooveStyle
+        case grooveIntensity
+        case humanizeMs
+        case hapticsEnabled
+        case subdivisionUsesAlternateClick
+    }
+
+    init(
+        bpm: Double,
+        meter: MeterSignature,
+        subdivision: MetronomeSubdivision,
+        countInBars: Int,
+        soundSet: MetronomeSoundSet,
+        masterVolume: Double,
+        swingAmount: Double,
+        grooveEnabled: Bool,
+        grooveStyle: GrooveStyle,
+        grooveIntensity: Double,
+        humanizeMs: Double,
+        hapticsEnabled: Bool,
+        subdivisionUsesAlternateClick: Bool = true
+    ) {
+        self.bpm = bpm
+        self.meter = meter
+        self.subdivision = subdivision
+        self.countInBars = countInBars
+        self.soundSet = soundSet
+        self.masterVolume = masterVolume
+        self.swingAmount = swingAmount
+        self.grooveEnabled = grooveEnabled
+        self.grooveStyle = grooveStyle
+        self.grooveIntensity = grooveIntensity
+        self.humanizeMs = humanizeMs
+        self.hapticsEnabled = hapticsEnabled
+        self.subdivisionUsesAlternateClick = subdivisionUsesAlternateClick
+    }
 
     static let `default` = MetronomeSettings(
         bpm: 120,
@@ -224,8 +271,43 @@ struct MetronomeSettings: Codable, Hashable {
         grooveStyle: .rock,
         grooveIntensity: 0.6,
         humanizeMs: 0,
-        hapticsEnabled: false
+        hapticsEnabled: false,
+        subdivisionUsesAlternateClick: true
     )
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        bpm = try container.decode(Double.self, forKey: .bpm)
+        meter = try container.decode(MeterSignature.self, forKey: .meter)
+        subdivision = try container.decode(MetronomeSubdivision.self, forKey: .subdivision)
+        countInBars = try container.decode(Int.self, forKey: .countInBars)
+        soundSet = try container.decode(MetronomeSoundSet.self, forKey: .soundSet)
+        masterVolume = try container.decode(Double.self, forKey: .masterVolume)
+        swingAmount = try container.decode(Double.self, forKey: .swingAmount)
+        grooveEnabled = try container.decode(Bool.self, forKey: .grooveEnabled)
+        grooveStyle = try container.decode(GrooveStyle.self, forKey: .grooveStyle)
+        grooveIntensity = try container.decode(Double.self, forKey: .grooveIntensity)
+        humanizeMs = try container.decode(Double.self, forKey: .humanizeMs)
+        hapticsEnabled = try container.decode(Bool.self, forKey: .hapticsEnabled)
+        subdivisionUsesAlternateClick = try container.decodeIfPresent(Bool.self, forKey: .subdivisionUsesAlternateClick) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(bpm, forKey: .bpm)
+        try container.encode(meter, forKey: .meter)
+        try container.encode(subdivision, forKey: .subdivision)
+        try container.encode(countInBars, forKey: .countInBars)
+        try container.encode(soundSet, forKey: .soundSet)
+        try container.encode(masterVolume, forKey: .masterVolume)
+        try container.encode(swingAmount, forKey: .swingAmount)
+        try container.encode(grooveEnabled, forKey: .grooveEnabled)
+        try container.encode(grooveStyle, forKey: .grooveStyle)
+        try container.encode(grooveIntensity, forKey: .grooveIntensity)
+        try container.encode(humanizeMs, forKey: .humanizeMs)
+        try container.encode(hapticsEnabled, forKey: .hapticsEnabled)
+        try container.encode(subdivisionUsesAlternateClick, forKey: .subdivisionUsesAlternateClick)
+    }
 }
 
 @MainActor

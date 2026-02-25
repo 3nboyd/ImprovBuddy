@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 enum NeonAccent: String, CaseIterable, Identifiable {
+    case deepBlue
     case cyan
     case lime
     case magenta
@@ -12,6 +13,7 @@ enum NeonAccent: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .deepBlue: "Deep Blue"
         case .cyan: "Cyan"
         case .lime: "Lime"
         case .magenta: "Magenta"
@@ -22,6 +24,8 @@ enum NeonAccent: String, CaseIterable, Identifiable {
 
     var color: Color {
         switch self {
+        case .deepBlue:
+            return Color(red: 0.07, green: 0.42, blue: 0.86)
         case .cyan:
             return Color(red: 0.0, green: 0.93, blue: 1.0)
         case .lime:
@@ -59,7 +63,7 @@ final class AppEnvironment: ObservableObject {
            let stored = NeonAccent(rawValue: raw) {
             neonAccent = stored
         } else {
-            neonAccent = .cyan
+            neonAccent = .deepBlue
         }
     }
 }
