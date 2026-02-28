@@ -859,16 +859,10 @@ private struct SongDetailRoute: Identifiable, Hashable {
 }
 
 private struct SongDetailPagerView: View {
-    @Environment(\.dismiss) private var dismiss
     let songs: [Song]
     let initialSongID: UUID?
 
     @State private var selectedIndex = 0
-
-    private var selectedSong: Song? {
-        guard songs.indices.contains(selectedIndex) else { return nil }
-        return songs[selectedIndex]
-    }
 
     var body: some View {
         Group {
@@ -884,45 +878,24 @@ private struct SongDetailPagerView: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 10) {
-                Button {
-                    dismiss()
-                } label: {
-                    Label("Back", systemImage: "chevron.backward")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
-                if let selectedSong {
-                    VStack(spacing: 2) {
-                        Text(selectedSong.title)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
-                        HStack(spacing: 4) {
-                            ForEach(Array(songs.indices), id: \.self) { index in
-                                Circle()
-                                    .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.35))
-                                    .frame(width: 6, height: 6)
-                            }
-                        }
+        .overlay(alignment: .bottom) {
+            if songs.count > 1 {
+                HStack(spacing: 6) {
+                    ForEach(Array(songs.indices), id: \.self) { index in
+                        Circle()
+                            .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.32))
+                            .frame(width: 7, height: 7)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
                 }
-
-                Spacer()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+                .padding(.bottom, 8)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 6)
-            .padding(.bottom, 8)
-            .background(.ultraThinMaterial)
         }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
@@ -942,14 +915,37 @@ private struct SongDetailPage: View {
     let song: Song
 
     @State private var showingMediaAttachPicker = false
+    @State private var showingSongEditor = false
     @State private var mediaAttachMessage = ""
     @State private var previewIndex = 0
     @State private var twoPageMode = false
     @State private var readerRefreshToken = UUID()
     @State private var markupSession: SongMarkupSession?
+    @State private var fullscreenSession: SongMarkupSession?
+    @State private var inlinePDFPageIndex = 0
+    @State private var inlinePDFPageCount = 1
+    @State private var inlinePDFNavigationRequest: SongPDFNavigationRequest?
 
     private var attachments: [SongAttachment] {
         song.mediaAttachments
+    }
+
+    private var currentAttachment: SongAttachment? {
+        guard !attachments.isEmpty else { return nil }
+        let clamped = min(max(0, previewIndex), attachments.count - 1)
+        return attachments[clamped]
+    }
+
+    private var isCurrentAttachmentPDF: Bool {
+        currentAttachment?.kind == .pdf
+    }
+
+    private var pageIndicatorLabel: String {
+        if isCurrentAttachmentPDF {
+            return "\(inlinePDFPageIndex + 1)/\(max(1, inlinePDFPageCount))"
+        }
+        guard !attachments.isEmpty else { return "0/0" }
+        return "\(min(previewIndex + 1, attachments.count))/\(attachments.count)"
     }
 
     private var isRegularWidth: Bool {
@@ -972,14 +968,83 @@ private struct SongDetailPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 6) {
-                        if let composer = song.composer, !composer.isEmpty {
-                            Text(composer)
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(song.title)
+                                    .font(.title3.weight(.bold))
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.85)
+                                if let composer = song.composer, !composer.isEmpty {
+                                    Text(composer)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Spacer(minLength: 10)
+
+                            Menu {
+                                Button {
+                                    showingSongEditor = true
+                                } label: {
+                                    Label("Edit Song Details", systemImage: "slider.horizontal.3")
+                                }
+
+                                Button {
+                                    showingMediaAttachPicker = true
+                                } label: {
+                                    Label("Add Files", systemImage: "paperclip")
+                                }
+
+                                if let currentAttachment {
+                                    Button(role: .destructive) {
+                                        removeAttachment(id: currentAttachment.id)
+                                    } label: {
+                                        Label("Delete Current Page", systemImage: "trash")
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.white.opacity(0.08), in: Circle())
+                            }
+                        }
+                        HStack(spacing: 8) {
+                            Text("\(Int(song.defaultTempoBPM)) BPM • \(song.feel.displayName) • \(song.timeSignatureTop)/\(song.timeSignatureBottom)")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.74)
+
+                            Spacer(minLength: 8)
+
+                            if !attachments.isEmpty {
+                                if attachments.count > 1 && !isCurrentAttachmentPDF {
+                                    Button(twoPageMode ? "1P" : "2P") {
+                                        twoPageMode.toggle()
+                                        if twoPageMode {
+                                            previewIndex = (previewIndex / 2) * 2
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+
+                                Text("Page \(pageIndicatorLabel)")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+
+                                Button {
+                                    fullscreenSession = SongMarkupSession(initialIndex: previewIndex)
+                                } label: {
+                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                        .font(.footnote.weight(.bold))
+                                }
+                                .buttonStyle(.bordered)
+                            }
                         }
-                        Text("\(Int(song.defaultTempoBPM)) BPM • \(song.feel.displayName) • \(song.timeSignatureTop)/\(song.timeSignatureBottom)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
                     }
                     if !song.tags.isEmpty {
                         HStack(spacing: 6) {
@@ -1021,23 +1086,22 @@ private struct SongDetailPage: View {
                             attachments: attachments,
                             pageIndex: $previewIndex,
                             twoPageMode: $twoPageMode,
-                            refreshToken: readerRefreshToken
+                            refreshToken: readerRefreshToken,
+                            isCurrentAttachmentPDF: isCurrentAttachmentPDF,
+                            currentPDFPageIndex: inlinePDFPageIndex,
+                            currentPDFPageCount: inlinePDFPageCount,
+                            pdfNavigationRequest: inlinePDFNavigationRequest
                         ) { selectedPageIndex in
                             markupSession = SongMarkupSession(initialIndex: selectedPageIndex)
+                        } onRequestPDFNavigation: { direction in
+                            inlinePDFNavigationRequest = SongPDFNavigationRequest(direction: direction)
+                        } onPDFPageStateChanged: { pageIndex, pageCount in
+                            inlinePDFPageIndex = pageIndex
+                            inlinePDFPageCount = pageCount
                         }
                         .frame(height: readerHeight(for: proxy.size.height))
                         .padding(.horizontal, -16)
                         .frame(maxWidth: .infinity)
-
-                        HStack {
-                            Button("Add Files") {
-                                showingMediaAttachPicker = true
-                            }
-                            .buttonStyle(.borderedProminent)
-                            Spacer()
-                        }
-
-                        attachmentList
 
                         if !mediaAttachMessage.isEmpty {
                             Text(mediaAttachMessage)
@@ -1059,6 +1123,9 @@ private struct SongDetailPage: View {
         ) { result in
             attachMedia(result)
         }
+        .sheet(isPresented: $showingSongEditor) {
+            SongEditorView(song: song)
+        }
         .sheet(item: $markupSession) { session in
             SongMarkupEditorSheet(
                 attachments: attachments,
@@ -1066,6 +1133,12 @@ private struct SongDetailPage: View {
             ) {
                 readerRefreshToken = UUID()
             }
+        }
+        .fullScreenCover(item: $fullscreenSession) { session in
+            SongMediaFullscreenReader(
+                song: song,
+                initialAttachmentIndex: session.initialIndex
+            )
         }
         .onAppear {
             if song.migrateLegacyPDFReferenceIfNeeded() {
@@ -1078,34 +1151,29 @@ private struct SongDetailPage: View {
             if attachments.count < 2 {
                 twoPageMode = false
             }
+            inlinePDFPageIndex = 0
+            inlinePDFPageCount = 1
+            inlinePDFNavigationRequest = nil
         }
-    }
-
-    private var attachmentList: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(attachments.enumerated()), id: \.element.id) { index, attachment in
-                HStack(spacing: 10) {
-                    Image(systemName: attachment.kind == .pdf ? "doc.richtext" : "photo")
-                        .foregroundStyle(.secondary)
-                    Text(attachment.originalFileName)
-                        .font(.subheadline)
-                        .lineLimit(1)
-                    Spacer()
-                    Button {
-                        removeAttachment(id: attachment.id)
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    previewIndex = index
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onChange(of: attachments.count) { _, newValue in
+            if newValue == 0 {
+                previewIndex = 0
+                twoPageMode = false
+                return
+            }
+            previewIndex = min(previewIndex, newValue - 1)
+            if newValue < 2 {
+                twoPageMode = false
+            }
+        }
+        .onChange(of: previewIndex) { _, _ in
+            inlinePDFPageIndex = 0
+            inlinePDFPageCount = 1
+            inlinePDFNavigationRequest = nil
+        }
+        .onChange(of: isCurrentAttachmentPDF) { _, isPDF in
+            if isPDF {
+                twoPageMode = false
             }
         }
     }
@@ -1172,7 +1240,13 @@ private struct SongAttachmentReaderPanel: View {
     @Binding var pageIndex: Int
     @Binding var twoPageMode: Bool
     let refreshToken: UUID
+    let isCurrentAttachmentPDF: Bool
+    let currentPDFPageIndex: Int
+    let currentPDFPageCount: Int
+    let pdfNavigationRequest: SongPDFNavigationRequest?
     var onMarkup: (Int) -> Void
+    var onRequestPDFNavigation: (SongPDFNavigationDirection) -> Void
+    var onPDFPageStateChanged: (Int, Int) -> Void
 
     private var clampedPageIndex: Int {
         min(max(0, pageIndex), max(0, attachments.count - 1))
@@ -1184,20 +1258,20 @@ private struct SongAttachmentReaderPanel: View {
         return attachments.indices.contains(candidate) ? candidate : nil
     }
 
-    private var pageLabel: String {
-        if twoPageMode {
-            let start = clampedPageIndex + 1
-            let end = min(clampedPageIndex + 2, attachments.count)
-            return "\(start)-\(end) / \(attachments.count)"
-        }
-        return "\(clampedPageIndex + 1) / \(attachments.count)"
-    }
-
     private var canGoBack: Bool {
-        clampedPageIndex > 0
+        if isCurrentAttachmentPDF {
+            return currentPDFPageIndex > 0 || clampedPageIndex > 0
+        }
+        return clampedPageIndex > 0
     }
 
     private var canGoForward: Bool {
+        if isCurrentAttachmentPDF {
+            if (currentPDFPageIndex + 1) < currentPDFPageCount {
+                return true
+            }
+            return (clampedPageIndex + 1) < attachments.count
+        }
         if twoPageMode {
             return (clampedPageIndex + 2) < attachments.count
         }
@@ -1206,24 +1280,6 @@ private struct SongAttachmentReaderPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Sheet Music")
-                    .font(.headline)
-                Spacer()
-                if attachments.count > 1 {
-                    Button(twoPageMode ? "1 Page" : "2 Pages") {
-                        twoPageMode.toggle()
-                        if twoPageMode {
-                            pageIndex = (clampedPageIndex / 2) * 2
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                }
-                Text("Page \(pageLabel)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             GeometryReader { proxy in
                 if twoPageMode {
                     let paneWidth = max(0, (proxy.size.width - 6) * 0.5)
@@ -1250,7 +1306,9 @@ private struct SongAttachmentReaderPanel: View {
                 } else {
                     SongFullscreenAttachmentPage(
                         attachment: attachments[clampedPageIndex],
-                        refreshToken: refreshToken
+                        refreshToken: refreshToken,
+                        pdfNavigationRequest: pdfNavigationRequest,
+                        onPDFPageStateChanged: onPDFPageStateChanged
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -1289,12 +1347,20 @@ private struct SongAttachmentReaderPanel: View {
 
     private func stepBack() {
         guard canGoBack else { return }
+        if isCurrentAttachmentPDF && currentPDFPageIndex > 0 {
+            onRequestPDFNavigation(.previous)
+            return
+        }
         let step = twoPageMode ? 2 : 1
         pageIndex = max(0, clampedPageIndex - step)
     }
 
     private func stepForward() {
         guard canGoForward else { return }
+        if isCurrentAttachmentPDF && (currentPDFPageIndex + 1) < currentPDFPageCount {
+            onRequestPDFNavigation(.next)
+            return
+        }
         let step = twoPageMode ? 2 : 1
         pageIndex = min(attachments.count - 1, clampedPageIndex + step)
     }
@@ -1564,6 +1630,8 @@ private struct SongQuickLookMarkupController: UIViewControllerRepresentable {
 private struct SongFullscreenAttachmentPage: View {
     let attachment: SongAttachment
     let refreshToken: UUID
+    var pdfNavigationRequest: SongPDFNavigationRequest? = nil
+    var onPDFPageStateChanged: ((Int, Int) -> Void)? = nil
     @State private var image: UIImage?
 
     var body: some View {
@@ -1571,7 +1639,12 @@ private struct SongFullscreenAttachmentPage: View {
             switch attachment.kind {
             case .pdf:
                 if let url = attachment.resolvedURL {
-                    SongFullscreenPDFView(url: url, refreshToken: refreshToken)
+                    SongFullscreenPDFView(
+                        url: url,
+                        refreshToken: refreshToken,
+                        navigationRequest: pdfNavigationRequest,
+                        onPageStateChanged: onPDFPageStateChanged
+                    )
                 } else {
                     SongFullscreenUnavailableView(fileName: attachment.originalFileName)
                 }
@@ -1627,10 +1700,30 @@ private struct SongFullscreenUnavailableView: View {
 private struct SongFullscreenPDFView: UIViewRepresentable {
     let url: URL
     let refreshToken: UUID
+    let navigationRequest: SongPDFNavigationRequest?
+    var onPageStateChanged: ((Int, Int) -> Void)? = nil
 
-    final class Coordinator {
+    final class Coordinator: NSObject, PDFViewDelegate {
         var loadedURL: URL?
         var loadedToken: UUID?
+        var lastNavigationID: UUID?
+        var onPageStateChanged: ((Int, Int) -> Void)?
+
+        func pdfViewPageChanged(_ sender: PDFView) {
+            reportPageState(from: sender)
+        }
+
+        func reportPageState(from pdfView: PDFView) {
+            guard let document = pdfView.document else { return }
+            let pageCount = max(1, document.pageCount)
+            let currentIndex: Int
+            if let currentPage = pdfView.currentPage {
+                currentIndex = max(0, document.index(for: currentPage))
+            } else {
+                currentIndex = 0
+            }
+            onPageStateChanged?(min(currentIndex, pageCount - 1), pageCount)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -1640,22 +1733,66 @@ private struct SongFullscreenPDFView: UIViewRepresentable {
     func makeUIView(context: Context) -> PDFView {
         let view = PDFView()
         view.autoScales = true
-        view.displayMode = .singlePageContinuous
-        view.displayDirection = .vertical
+        view.displayBox = .cropBox
+        view.displayMode = .singlePage
+        view.displayDirection = .horizontal
         view.backgroundColor = .black
         view.displaysPageBreaks = false
-        view.usePageViewController(false, withViewOptions: nil)
+        view.delegate = context.coordinator
+        view.usePageViewController(true, withViewOptions: nil)
         return view
     }
 
     func updateUIView(_ uiView: PDFView, context: Context) {
-        let shouldReload = context.coordinator.loadedURL != url || context.coordinator.loadedToken != refreshToken
-        guard shouldReload else { return }
+        context.coordinator.onPageStateChanged = onPageStateChanged
 
-        context.coordinator.loadedURL = url
-        context.coordinator.loadedToken = refreshToken
-        uiView.document = PDFDocument(url: url)
-        uiView.autoScales = true
-        uiView.goToFirstPage(nil)
+        let shouldReload = context.coordinator.loadedURL != url || context.coordinator.loadedToken != refreshToken
+        if shouldReload {
+            context.coordinator.loadedURL = url
+            context.coordinator.loadedToken = refreshToken
+            context.coordinator.lastNavigationID = nil
+            uiView.document = PDFDocument(url: url)
+            uiView.autoScales = true
+            uiView.goToFirstPage(nil)
+            scrollToInitialContentPosition(in: uiView)
+            context.coordinator.reportPageState(from: uiView)
+        }
+
+        if
+            let navigationRequest,
+            context.coordinator.lastNavigationID != navigationRequest.id
+        {
+            context.coordinator.lastNavigationID = navigationRequest.id
+            switch navigationRequest.direction {
+            case .previous:
+                uiView.goToPreviousPage(nil)
+            case .next:
+                uiView.goToNextPage(nil)
+            }
+            context.coordinator.reportPageState(from: uiView)
+        }
     }
+
+    private func scrollToInitialContentPosition(in pdfView: PDFView) {
+        guard let firstPage = pdfView.document?.page(at: 0) else { return }
+        let bounds = firstPage.bounds(for: .cropBox)
+        let destination = PDFDestination(
+            page: firstPage,
+            at: CGPoint(
+                x: bounds.midX,
+                y: bounds.maxY - (bounds.height * 0.08)
+            )
+        )
+        pdfView.go(to: destination)
+    }
+}
+
+private enum SongPDFNavigationDirection {
+    case previous
+    case next
+}
+
+private struct SongPDFNavigationRequest: Equatable {
+    let id = UUID()
+    let direction: SongPDFNavigationDirection
 }
