@@ -1,6 +1,47 @@
 import Foundation
 import SwiftData
 
+enum SongAttachmentKind: String, Codable {
+    case pdf
+    case image
+}
+
+struct SongAttachment: Codable, Identifiable, Equatable {
+    var id: UUID
+    var kind: SongAttachmentKind
+    var path: String
+    var originalFileName: String
+    var createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        kind: SongAttachmentKind,
+        path: String,
+        originalFileName: String,
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.kind = kind
+        self.path = path
+        self.originalFileName = originalFileName
+        self.createdAt = createdAt
+    }
+
+    var resolvedURL: URL? {
+        if let url = URL(string: path), url.scheme != nil {
+            return url
+        }
+        return URL(fileURLWithPath: path)
+    }
+
+    static func inferredFileName(from path: String) -> String {
+        if let url = URL(string: path), url.scheme != nil {
+            return url.lastPathComponent
+        }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+}
+
 @Model
 final class Song {
     static let defaultTagSuggestions: [String] = [
@@ -24,6 +65,7 @@ final class Song {
     var timeSignatureBottom: Int
     var formData: Data = Data()
     var pdfReferencePath: String?
+    var attachmentsData: Data = Data()
 
     var styleTags: [String] {
         get { CodableBlob.decode([String].self, from: styleTagsData, default: []) }
@@ -40,6 +82,39 @@ final class Song {
         set { formData = CodableBlob.encode(newValue) }
     }
 
+    var attachments: [SongAttachment] {
+        get { CodableBlob.decode([SongAttachment].self, from: attachmentsData, default: []) }
+        set {
+            attachmentsData = CodableBlob.encode(newValue)
+            if let firstPDF = newValue.first(where: { $0.kind == .pdf }) {
+                pdfReferencePath = firstPDF.path
+            } else if let first = newValue.first {
+                pdfReferencePath = first.path
+            } else {
+                pdfReferencePath = nil
+            }
+        }
+    }
+
+    var mediaAttachments: [SongAttachment] {
+        let items = attachments
+        if !items.isEmpty {
+            return items
+        }
+
+        guard let legacyPath = pdfReferencePath, !legacyPath.isEmpty else {
+            return []
+        }
+
+        return [
+            SongAttachment(
+                kind: .pdf,
+                path: legacyPath,
+                originalFileName: SongAttachment.inferredFileName(from: legacyPath)
+            )
+        ]
+    }
+
     init(
         id: UUID = UUID(),
         createdAt: Date = .now,
@@ -52,7 +127,8 @@ final class Song {
         timeSignatureTop: Int = 4,
         timeSignatureBottom: Int = 4,
         form: [Measure] = [],
-        pdfReferencePath: String? = nil
+        pdfReferencePath: String? = nil,
+        attachments: [SongAttachment] = []
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -66,6 +142,12 @@ final class Song {
         self.timeSignatureBottom = timeSignatureBottom
         self.formData = CodableBlob.encode(form)
         self.pdfReferencePath = pdfReferencePath
+        self.attachmentsData = CodableBlob.encode(attachments)
+        if let firstPDF = attachments.first(where: { $0.kind == .pdf }) {
+            self.pdfReferencePath = firstPDF.path
+        } else if let first = attachments.first {
+            self.pdfReferencePath = first.path
+        }
         self.tags = styleTags
     }
 
@@ -75,6 +157,40 @@ final class Song {
 
     func touch() {
         updatedAt = .now
+    }
+
+    @discardableResult
+    func migrateLegacyPDFReferenceIfNeeded() -> Bool {
+        guard attachments.isEmpty, let legacyPath = pdfReferencePath, !legacyPath.isEmpty else {
+            return false
+        }
+
+        attachments = [
+            SongAttachment(
+                kind: .pdf,
+                path: legacyPath,
+                originalFileName: SongAttachment.inferredFileName(from: legacyPath)
+            )
+        ]
+        return true
+    }
+
+    func addAttachments(_ newAttachments: [SongAttachment]) {
+        guard !newAttachments.isEmpty else { return }
+
+        var next = attachments
+        var seen = Set(next.map(\.path))
+        for attachment in newAttachments where !seen.contains(attachment.path) {
+            next.append(attachment)
+            seen.insert(attachment.path)
+        }
+        attachments = next
+    }
+
+    func removeAttachment(id: UUID) {
+        var next = attachments
+        next.removeAll { $0.id == id }
+        attachments = next
     }
 
     func hasTag(_ rawTag: String) -> Bool {
@@ -141,61 +257,34 @@ extension Song {
     static func demoSongs() -> [Song] {
         [
             Song(
-                title: "ii-V-I in C",
-                composer: "Demo Pack",
-                styleTags: ["swing", "study"],
-                defaultTempoBPM: 120,
-                feel: .swing,
+                title: "Twinkle Twinkle Little Star (example)",
+                composer: nil,
+                styleTags: ["practice", "standards"],
+                defaultTempoBPM: 88,
+                feel: .straight,
                 timeSignatureTop: 4,
                 timeSignatureBottom: 4,
-                form: [
-                    Measure(index: 0, sectionLabel: "A", chordSymbol: "Dm7"),
-                    Measure(index: 1, sectionLabel: "A", chordSymbol: "G7"),
-                    Measure(index: 2, sectionLabel: "A", chordSymbol: "Cmaj7"),
-                    Measure(index: 3, sectionLabel: "A", chordSymbol: "Cmaj7")
-                ]
+                form: []
             ),
             Song(
-                title: "F Blues",
-                composer: "Demo Pack",
-                styleTags: ["blues", "swing"],
-                defaultTempoBPM: 110,
-                feel: .swing,
+                title: "Ode to Joy (example)",
+                composer: nil,
+                styleTags: ["practice", "misc"],
+                defaultTempoBPM: 92,
+                feel: .straight,
                 timeSignatureTop: 4,
                 timeSignatureBottom: 4,
-                form: [
-                    Measure(index: 0, sectionLabel: "A", chordSymbol: "F7"),
-                    Measure(index: 1, sectionLabel: "A", chordSymbol: "Bb7"),
-                    Measure(index: 2, sectionLabel: "A", chordSymbol: "F7"),
-                    Measure(index: 3, sectionLabel: "A", chordSymbol: "F7"),
-                    Measure(index: 4, sectionLabel: "A", chordSymbol: "Bb7"),
-                    Measure(index: 5, sectionLabel: "A", chordSymbol: "Bdim7"),
-                    Measure(index: 6, sectionLabel: "A", chordSymbol: "F7"),
-                    Measure(index: 7, sectionLabel: "A", chordSymbol: "D7"),
-                    Measure(index: 8, sectionLabel: "B", chordSymbol: "Gm7"),
-                    Measure(index: 9, sectionLabel: "B", chordSymbol: "C7"),
-                    Measure(index: 10, sectionLabel: "B", chordSymbol: "F7"),
-                    Measure(index: 11, sectionLabel: "B", chordSymbol: "C7")
-                ]
+                form: []
             ),
             Song(
-                title: "Rhythm Changes (Simple)",
-                composer: "Demo Pack",
-                styleTags: ["rhythm changes", "bebop"],
-                defaultTempoBPM: 140,
+                title: "When the Saints Go Marching In (example)",
+                composer: nil,
+                styleTags: ["practice", "jazz"],
+                defaultTempoBPM: 104,
                 feel: .swing,
                 timeSignatureTop: 4,
                 timeSignatureBottom: 4,
-                form: [
-                    Measure(index: 0, sectionLabel: "A", chordSymbol: "Bbmaj7"),
-                    Measure(index: 1, sectionLabel: "A", chordSymbol: "G7"),
-                    Measure(index: 2, sectionLabel: "A", chordSymbol: "Cm7"),
-                    Measure(index: 3, sectionLabel: "A", chordSymbol: "F7"),
-                    Measure(index: 4, sectionLabel: "B", chordSymbol: "D7"),
-                    Measure(index: 5, sectionLabel: "B", chordSymbol: "G7"),
-                    Measure(index: 6, sectionLabel: "B", chordSymbol: "C7"),
-                    Measure(index: 7, sectionLabel: "B", chordSymbol: "F7")
-                ]
+                form: []
             )
         ]
     }

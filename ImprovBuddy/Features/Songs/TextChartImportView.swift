@@ -43,16 +43,35 @@ struct TextChartImportView: View {
             .padding()
             .navigationTitle("Import Text Chart")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+            .navigationBarBackButtonHidden(true)
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: 10) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Back", systemImage: "chevron.backward")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
                     Button("Import") {
                         onImport(previewMeasures)
                         dismiss()
                     }
+                    .buttonStyle(.borderedProminent)
                     .disabled(previewMeasures.isEmpty)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .top) {
+                    Divider().opacity(0.2)
                 }
             }
         }

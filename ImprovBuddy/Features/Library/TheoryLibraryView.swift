@@ -34,6 +34,7 @@ private enum TheoryGridOrder: String, CaseIterable, Identifiable {
 struct TheoryLibraryView: View {
     @EnvironmentObject private var appEnvironment: AppEnvironment
     @EnvironmentObject private var services: ServiceContainer
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var synth = SimpleSynth()
 
     @State private var browseMode: TheoryBrowseMode = .chords
@@ -53,7 +54,14 @@ struct TheoryLibraryView: View {
     @State private var scrollY: CGFloat = 0
     @State private var scrollOriginY: CGFloat?
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    private var relatedGridColumns: [GridItem] {
+        let count = horizontalSizeClass == .regular ? 3 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
+    }
+
+    private var contentMaxWidth: CGFloat {
+        horizontalSizeClass == .regular ? 1240 : .infinity
+    }
 
     private var functionOptions: [String] {
         ["All"] + TheoryFunctionTag.allCases.map(\.displayName)
@@ -200,7 +208,8 @@ struct TheoryLibraryView: View {
                 browserSection
             }
             .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: contentMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .coordinateSpace(name: "theoryLibraryScroll")
         .navigationTitle("Theory Library")
@@ -290,53 +299,125 @@ struct TheoryLibraryView: View {
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
 
             DisclosureGroup(isExpanded: $showAdvancedFilters) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
-                        Picker("Instrument", selection: $selectedInstrument) {
-                            ForEach(TheoryInstrumentTransposition.allCases) { mode in
-                                Text(mode.displayName).tag(mode)
+                VStack(spacing: 10) {
+                    filterMenuCard(
+                        title: "Instrument",
+                        value: selectedInstrument.displayName
+                    ) {
+                        ForEach(TheoryInstrumentTransposition.allCases) { mode in
+                            Button {
+                                selectedInstrument = mode
+                            } label: {
+                                menuOptionLabel(mode.displayName, selected: selectedInstrument == mode)
                             }
                         }
-                        .pickerStyle(.menu)
-
-                        Picker("Clef", selection: $selectedClef) {
-                            ForEach(TheoryClef.allCases) { clef in
-                                Text(clef.displayName).tag(clef)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        Picker("Tier", selection: $selectedTier) {
-                            ForEach(TheoryTier.allCases) { tier in
-                                Text(tier.displayName).tag(tier)
-                            }
-                        }
-                        .pickerStyle(.menu)
                     }
+                    .frame(maxWidth: .infinity)
 
-                    HStack(spacing: 10) {
-                        if browseMode == .chords {
-                            Picker("Function", selection: $selectedFunctionFilter) {
-                                ForEach(functionOptions, id: \.self) { value in
-                                    Text(value).tag(value)
+                    adaptiveFilterPair {
+                        filterMenuCard(
+                            title: "Clef",
+                            value: selectedClef.displayName
+                        ) {
+                            ForEach(TheoryClef.allCases) { clef in
+                                Button {
+                                    selectedClef = clef
+                                } label: {
+                                    menuOptionLabel(clef.displayName, selected: selectedClef == clef)
                                 }
                             }
-                            .pickerStyle(.menu)
                         }
-
-                        Picker("Family", selection: $selectedFamilyFilter) {
-                            ForEach(familyOptions, id: \.self) { family in
-                                Text(family).tag(family)
+                        .frame(maxWidth: .infinity)
+                    } right: {
+                        filterMenuCard(
+                            title: "Tier",
+                            value: selectedTier.displayName
+                        ) {
+                            ForEach(TheoryTier.allCases) { tier in
+                                Button {
+                                    selectedTier = tier
+                                } label: {
+                                    menuOptionLabel(tier.displayName, selected: selectedTier == tier)
+                                }
                             }
                         }
-                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity)
+                    }
 
-                        Picker("Order", selection: $gridOrder) {
+                    if browseMode == .chords {
+                        adaptiveFilterPair {
+                            filterMenuCard(
+                                title: "Function",
+                                value: selectedFunctionFilter
+                            ) {
+                                ForEach(functionOptions, id: \.self) { value in
+                                    Button {
+                                        selectedFunctionFilter = value
+                                    } label: {
+                                        menuOptionLabel(value, selected: selectedFunctionFilter == value)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        } right: {
+                            filterMenuCard(
+                                title: "Family",
+                                value: selectedFamilyFilter
+                            ) {
+                                ForEach(familyOptions, id: \.self) { family in
+                                    Button {
+                                        selectedFamilyFilter = family
+                                    } label: {
+                                        menuOptionLabel(family, selected: selectedFamilyFilter == family)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+
+                        filterMenuCard(
+                            title: "Order",
+                            value: gridOrder.displayName
+                        ) {
                             ForEach(TheoryGridOrder.allCases) { order in
-                                Text(order.displayName).tag(order)
+                                Button {
+                                    gridOrder = order
+                                } label: {
+                                    menuOptionLabel(order.displayName, selected: gridOrder == order)
+                                }
                             }
                         }
-                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        adaptiveFilterPair {
+                            filterMenuCard(
+                                title: "Family",
+                                value: selectedFamilyFilter
+                            ) {
+                                ForEach(familyOptions, id: \.self) { family in
+                                    Button {
+                                        selectedFamilyFilter = family
+                                    } label: {
+                                        menuOptionLabel(family, selected: selectedFamilyFilter == family)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        } right: {
+                            filterMenuCard(
+                                title: "Order",
+                                value: gridOrder.displayName
+                            ) {
+                                ForEach(TheoryGridOrder.allCases) { order in
+                                    Button {
+                                        gridOrder = order
+                                    } label: {
+                                        menuOptionLabel(order.displayName, selected: gridOrder == order)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
                     }
                 }
                 .padding(.top, 8)
@@ -354,14 +435,6 @@ struct TheoryLibraryView: View {
             HStack {
                 Text(browseMode == .chords ? "Chord Browser" : "Scale Browser")
                     .font(.headline)
-
-                Spacer()
-
-                if gridOrder == .similarity {
-                    Text("Similar to \(similarityAnchorName)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             if browseMode == .chords {
@@ -383,11 +456,25 @@ struct TheoryLibraryView: View {
                         }
 
                         if !supportingChords.isEmpty {
-                            Text("Related Chords")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text("Related Chords")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                if gridOrder == .similarity {
+                                    HStack {
+                                        Spacer()
+                                        Text("Similar to \(similarityAnchorName)")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                }
+                            }
 
-                            LazyVGrid(columns: columns, spacing: 12) {
+                            LazyVGrid(columns: relatedGridColumns, spacing: 12) {
                                 ForEach(supportingChords) { chord in
                                     chordCard(chord)
                                 }
@@ -415,11 +502,25 @@ struct TheoryLibraryView: View {
                         }
 
                         if !supportingScales.isEmpty {
-                            Text("Related Scales")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text("Related Scales")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                if gridOrder == .similarity {
+                                    HStack {
+                                        Spacer()
+                                        Text("Similar to \(similarityAnchorName)")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                }
+                            }
 
-                            LazyVGrid(columns: columns, spacing: 12) {
+                            LazyVGrid(columns: relatedGridColumns, spacing: 12) {
                                 ForEach(supportingScales) { scale in
                                     scaleCard(scale)
                                 }
@@ -431,6 +532,71 @@ struct TheoryLibraryView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func filterMenuCard<Content: View>(
+        title: String,
+        value: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Menu {
+            content()
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(TheoryDisplayFormatter.displaySymbol(value))
+                        .font(.footnote.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .allowsTightening(true)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 6)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func adaptiveFilterPair<Left: View, Right: View>(
+        @ViewBuilder left: () -> Left,
+        @ViewBuilder right: () -> Right
+    ) -> some View {
+        ViewThatFits {
+            HStack(spacing: 10) {
+                left()
+                right()
+            }
+
+            VStack(spacing: 10) {
+                left()
+                right()
+            }
+        }
+    }
+
+    private func menuOptionLabel(_ label: String, selected: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(TheoryDisplayFormatter.displaySymbol(label))
+            if selected {
+                Image(systemName: "checkmark")
+            }
+        }
     }
 
     private func chordCard(_ chord: TheoryChordDefinition, isPrimary: Bool = false) -> some View {
@@ -759,6 +925,8 @@ private struct KeySwipeCarousel: View {
 
     @State private var isSliding = false
     @State private var anchorIndex = 0
+    @State private var showSwipeHint = false
+    @State private var hideSwipeHintWorkItem: DispatchWorkItem?
 #if os(iOS)
     private let feedback = UISelectionFeedbackGenerator()
 #endif
@@ -774,25 +942,49 @@ private struct KeySwipeCarousel: View {
 
                 ZStack {
                     Capsule()
-                        .fill(appEnvironment.accentColor.opacity(isSliding ? 0.24 : 0.14))
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    appEnvironment.accentColor.opacity(isSliding ? 0.40 : 0.32),
+                                    appEnvironment.accentColor.opacity(isSliding ? 0.30 : 0.22)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    Capsule()
+                        .stroke(appEnvironment.accentColor.opacity(isSliding ? 0.78 : 0.62), lineWidth: 1.1)
 
                     VStack(spacing: 1) {
                         Text(TheoryDisplayFormatter.displaySymbol(previous))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(appEnvironment.accentColor.opacity(0.64))
-                            .opacity(0.75)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(appEnvironment.accentColor.opacity(0.88))
+                            .opacity(0.86)
 
                         Text(TheoryDisplayFormatter.displaySymbol(selectedKeyName))
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .font(.system(size: 18, weight: .heavy, design: .rounded))
                             .foregroundStyle(appEnvironment.accentColor)
+                            .shadow(color: appEnvironment.accentColor.opacity(0.38), radius: 2, x: 0, y: 0)
                             .lineLimit(1)
 
                         Text(TheoryDisplayFormatter.displaySymbol(next))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(appEnvironment.accentColor.opacity(0.64))
-                            .opacity(0.75)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(appEnvironment.accentColor.opacity(0.88))
+                            .opacity(0.86)
                     }
                     .frame(width: 58, height: 60)
+                    .overlay(alignment: .trailing) {
+                        if showSwipeHint && !isSliding {
+                            VStack(spacing: 1) {
+                                Image(systemName: "chevron.up")
+                                Image(systemName: "chevron.down")
+                            }
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(appEnvironment.accentColor.opacity(0.92))
+                            .padding(.trailing, 5)
+                            .transition(.opacity)
+                        }
+                    }
                     .mask(
                         RoundedRectangle(cornerRadius: 14)
                             .padding(.vertical, -5)
@@ -801,6 +993,12 @@ private struct KeySwipeCarousel: View {
                 .frame(width: 78, height: 66)
                 .animation(.easeInOut(duration: 0.15), value: selectedKeyName)
                 .gesture(scrubGesture)
+                .simultaneousGesture(
+                    TapGesture()
+                        .onEnded {
+                            showSwipeDirectionHint()
+                        }
+                )
                 .accessibilityLabel("Key Carousel")
             }
         }
@@ -834,6 +1032,10 @@ private struct KeySwipeCarousel: View {
 
     private func beginSlidingIfNeeded() {
         guard !isSliding else { return }
+        hideSwipeHintWorkItem?.cancel()
+        withAnimation(.easeOut(duration: 0.1)) {
+            showSwipeHint = false
+        }
         anchorIndex = currentIndex
         isSliding = true
 #if os(iOS)
@@ -859,6 +1061,21 @@ private struct KeySwipeCarousel: View {
         feedback.selectionChanged()
         feedback.prepare()
 #endif
+    }
+
+    private func showSwipeDirectionHint() {
+        hideSwipeHintWorkItem?.cancel()
+        withAnimation(.easeOut(duration: 0.14)) {
+            showSwipeHint = true
+        }
+
+        let workItem = DispatchWorkItem {
+            withAnimation(.easeIn(duration: 0.2)) {
+                showSwipeHint = false
+            }
+        }
+        hideSwipeHintWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
     }
 }
 

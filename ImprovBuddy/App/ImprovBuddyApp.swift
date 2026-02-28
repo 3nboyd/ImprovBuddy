@@ -11,20 +11,20 @@ struct ImprovBuddyApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                RootTabView()
-                    .environmentObject(appEnvironment)
-                    .environmentObject(services)
-                    .preferredColorScheme(.dark)
-                    .tint(appEnvironment.accentColor)
-                    .accentColor(appEnvironment.accentColor)
-
                 if showsLaunchSplash {
                     JadeLaunchSplashView(
                         accentColor: appEnvironment.accentColor,
                         isPresented: $showsLaunchSplash
                     )
-                    .transition(.opacity)
-                    .zIndex(10)
+                    .zIndex(1000)
+                } else {
+                    RootTabView()
+                        .environmentObject(appEnvironment)
+                        .environmentObject(services)
+                        .preferredColorScheme(.dark)
+                        .tint(appEnvironment.accentColor)
+                        .accentColor(appEnvironment.accentColor)
+                        .transition(.opacity)
                 }
             }
         }
@@ -82,26 +82,26 @@ private struct JadeLaunchSplashView: View {
             withAnimation(.easeOut(duration: 0.2)) {
                 animateIn = true
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 withAnimation(.easeOut(duration: 0.2)) {
                     animateOut = true
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) {
                     isPresented = false
                 }
             }
             return
         }
 
-        withAnimation(.easeOut(duration: 0.32)) {
+        withAnimation(.easeOut(duration: 0.36)) {
             animateIn = true
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.95) {
-            withAnimation(.spring(response: 0.56, dampingFraction: 0.84)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.22) {
+            withAnimation(.spring(response: 0.62, dampingFraction: 0.84)) {
                 animateOut = true
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
                 isPresented = false
             }
         }

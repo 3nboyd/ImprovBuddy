@@ -1,39 +1,65 @@
 import SwiftUI
 
 struct HelpView: View {
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Group {
-                    Text("Chord Forms")
+                    Text("Songs Workspace")
                         .font(.headline)
-                    Text("Jade follows the chord form you provide. It does not require automatic chord detection.")
+                    Text("Jade is optimized around real sheet music. Import PDFs or images, attach multiple pages, and swipe through pages while keeping Tools available.")
 
-                    Text("Scoring")
+                    Text("Tools + Global Overlays")
                         .font(.headline)
-                    Text("Time feel uses your onsets vs the session grid. Harmony uses your notes against the active chord symbol in the form.")
+                    Text("Mini Tuner and Mini BPM overlays mirror the same engines used in Tools. Any change to tempo, start/stop, or tuning reflects across tabs.")
 
-                    Text("Harmony States")
+                    Text("Metronome")
                         .font(.headline)
-                    Text("Chord Tone, Tension, Approach, and Outside are measured continuously. Strong-beat chord-tone accuracy is weighted higher in report notes.")
+                    Text("Tap tempo, meter, subdivision, count-in, and sound are live controls. If count-in is enabled, playback starts after the visual count-in completes.")
 
-                    Text("Form Alignment")
+                    Text("Tuner")
                         .font(.headline)
-                    Text("If your position drifts from the form, use Jump to Bar or Restart Chorus to realign quickly.")
+                    Text("Pitch display uses a flat-to-sharp gradient with a moving marker and note/cents readout. Hold on the pitch area to audition/sustain target tones.")
                 }
 
                 Group {
-                    Text("Input Modes")
+                    Text("Idea Recorder")
                         .font(.headline)
-                    Text("MIDI mode is preferred for demos and piano. Mic mode uses pitch + onset detection and works for acoustic instruments.")
+                    Text("Audio ideas save locally with auto-incrementing take names. Swipe left to delete, swipe right to pin, and use inline speed/transpose controls during playback.")
 
                     Text("Privacy")
                         .font(.headline)
-                    Text("Jade is local-first and runs analysis on-device. No login is required.")
+                    Text("Jade is local-first. Audio analysis, tuner, metronome, and library metadata processing run on-device. No account is required.")
                 }
             }
             .padding()
         }
-        .navigationTitle("How It Works")
+        .navigationTitle("Jade Help")
+        .navigationBarBackButtonHidden(true)
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Back", systemImage: "chevron.backward")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+            .background(.ultraThinMaterial)
+            .overlay(alignment: .top) {
+                Divider().opacity(0.2)
+            }
+        }
     }
 }

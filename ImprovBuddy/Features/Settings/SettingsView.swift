@@ -121,7 +121,7 @@ struct SettingsView: View {
             }
 
             Section("Help") {
-                NavigationLink("How Jade Scores") {
+                NavigationLink("Jade Help & Scoring") {
                     HelpView()
                 }
 
@@ -139,6 +139,7 @@ struct SettingsView: View {
 }
 
 private struct RecorderRecentlyDeletedView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var appEnvironment: AppEnvironment
     @Query(sort: \LibraryItem.updatedAt, order: .reverse) private var libraryItems: [LibraryItem]
@@ -193,21 +194,36 @@ private struct RecorderRecentlyDeletedView: View {
             }
         }
         .navigationTitle("Recorder Recently Deleted")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(allSelected ? "Clear" : "Select All") {
-                    if allSelected {
-                        selectedIDs.removeAll()
-                    } else {
-                        selectedIDs = Set(deletedRecorderItems.map(\.id))
-                    }
-                }
-                .disabled(deletedRecorderItems.isEmpty)
-            }
-        }
+        .navigationBarBackButtonHidden(true)
         .safeAreaInset(edge: .bottom) {
-            if !deletedRecorderItems.isEmpty {
-                VStack(spacing: 8) {
+            VStack(spacing: 8) {
+                HStack(spacing: 10) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Back", systemImage: "chevron.backward")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Button(allSelected ? "Clear" : "Select All") {
+                        if allSelected {
+                            selectedIDs.removeAll()
+                        } else {
+                            selectedIDs = Set(deletedRecorderItems.map(\.id))
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(appEnvironment.accentColor)
+                    .disabled(deletedRecorderItems.isEmpty)
+                }
+
+                if !deletedRecorderItems.isEmpty {
                     Button {
                         recoverSelected()
                     } label: {
@@ -227,13 +243,13 @@ private struct RecorderRecentlyDeletedView: View {
                             .lineLimit(2)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 10)
-                .background(.ultraThinMaterial)
-                .overlay(alignment: .top) {
-                    Divider().opacity(0.2)
-                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
+            .background(.ultraThinMaterial)
+            .overlay(alignment: .top) {
+                Divider().opacity(0.2)
             }
         }
         .onChange(of: deletedRecorderItems.map(\.id)) { _, ids in

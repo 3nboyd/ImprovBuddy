@@ -1,4 +1,3 @@
-import AVKit
 import SwiftData
 import SwiftUI
 
@@ -10,24 +9,16 @@ struct IdeaRecorderView: View {
 
     @StateObject private var recorder = IdeaRecorderEngine()
 
-    @State private var title = ""
-    @State private var notes = ""
-    @State private var tagsText = ""
+    @State private var title = "Idea"
     @State private var statusText = ""
-    @State private var recordWithVideo = false
-    @State private var previewPlayer: AVPlayer?
-    @State private var selectedVideoURL: URL?
 
     @State private var isScrubbingPlayback = false
     @State private var scrubTime: Double = 0
-    @State private var showingPlaybackTools = false
-    @State private var sourceKeyName = "C"
-    @State private var targetKeyName = "C"
-
-    private let keyChoices = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+    @State private var renamingItem: LibraryItem?
+    @State private var renameDraft = ""
 
     private var hasCapture: Bool {
-        recorder.lastRecordedURL != nil || recorder.lastRecordedVideoURL != nil
+        recorder.lastRecordedURL != nil
     }
 
     private var recorderIdeaItems: [LibraryItem] {
@@ -43,8 +34,6 @@ struct IdeaRecorderView: View {
                 }
                 return lhs.updatedAt > rhs.updatedAt
             }
-            .prefix(6)
-            .map { $0 }
     }
 
     private var currentPlaybackTitle: String {
@@ -57,127 +46,48 @@ struct IdeaRecorderView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 12) {
-                Button {
-                    if recordWithVideo {
-                        recordWithVideo = false
-                        return
-                    }
+            TextField("Base title (used for takes)", text: $title)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.words)
 
-                    guard recorder.isVideoCaptureAvailable else {
-                        statusText = "Camera is unavailable on this device."
-                        return
-                    }
-                    recordWithVideo = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: recordWithVideo ? "checkmark.square.fill" : "square")
-                            .foregroundColor(recordWithVideo ? appEnvironment.accentColor : .secondary)
-                        Text("Record with Video")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                }
-                .buttonStyle(.plain)
-
-                HStack(spacing: 10) {
-                    Button(recorder.isRecording ? "Stop" : "Record") {
-                        Task {
-                            await toggleRecording()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button(recorder.isPlaying ? "Stop Audio" : "Play Last Audio") {
-                        if recorder.isPlaying {
-                            recorder.stopPlayback()
-                        } else {
-                            recorder.playLatest()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(recorder.lastRecordedURL == nil)
-
-                    Button("Save") {
-                        saveLatestSnippet()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!hasCapture)
-                }
-
-                TextField("Title", text: $title)
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Notes", text: $notes, axis: .vertical)
-                    .lineLimit(2...3)
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Tags (comma)", text: $tagsText)
-                    .textFieldStyle(.roundedBorder)
-
-                if !statusText.isEmpty {
-                    Text(statusText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-
-                recentSavesSection
-            }
-
-            Spacer(minLength: 4)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Video Preview")
-                    .font(.caption.weight(.semibold))
+            if !statusText.isEmpty {
+                Text(statusText)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-
-                if let player = previewPlayer {
-                    VideoPlayer(player: player)
-                        .frame(height: 170)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                    HStack(spacing: 10) {
-                        Button("Replay") {
-                            player.seek(to: .zero)
-                            player.play()
-                        }
-                        .buttonStyle(.bordered)
-
-                        Text(selectedVideoURL?.lastPathComponent ?? "")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                } else {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
-                        .overlay {
-                            Text(recordWithVideo ? "Record a video idea to preview it here." : "Tap a saved video item to preview it here.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 12)
-                        }
-                        .frame(height: 170)
-                }
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            recentSavesSection
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.bottom, 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Idea Recorder")
         .safeAreaInset(edge: .bottom) {
-            playbackBar
-        }
-        .sheet(isPresented: $showingPlaybackTools) {
-            playbackToolsSheet
-        }
-        .onChange(of: recorder.lastRecordedVideoURL) { _, newValue in
-            guard let newValue else {
-                return
+            VStack(spacing: 0) {
+                playbackBar
+                recorderControlDock
             }
-            loadVideoPreview(url: newValue, autoplay: false)
+            .background(.ultraThinMaterial)
+            .overlay(alignment: .top) {
+                Divider().opacity(0.22)
+            }
+        }
+        .alert("Rename Recording", isPresented: Binding(
+            get: { renamingItem != nil },
+            set: { isPresented in
+                if !isPresented { renamingItem = nil }
+            }
+        )) {
+            TextField("Title", text: $renameDraft)
+            Button("Cancel", role: .cancel) {
+                renamingItem = nil
+            }
+            Button("Save") {
+                applyRename()
+            }
         }
         .onChange(of: recorder.playbackCurrentTime) { _, newValue in
             if !isScrubbingPlayback {
@@ -187,13 +97,10 @@ struct IdeaRecorderView: View {
         .onChange(of: recorder.currentPlaybackURL?.path) { _, _ in
             isScrubbingPlayback = false
             scrubTime = recorder.playbackCurrentTime
-            syncKeySelectionFromCurrentPlayback()
         }
-        .onChange(of: recorder.playbackSemitoneShift) { _, _ in
-            syncTargetKeyFromSemitone()
-        }
-        .onDisappear {
-            previewPlayer?.pause()
+        .onChange(of: recorder.playbackErrorMessage) { _, newValue in
+            guard let newValue, !newValue.isEmpty else { return }
+            statusText = "Playback failed: \(newValue)"
         }
     }
 
@@ -209,88 +116,103 @@ struct IdeaRecorderView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(recentIdeaItems) { item in
-                            let audioURL = audioURL(for: item)
-                            let videoURL = videoURL(for: item)
-                            let isCurrent = audioURL.flatMap { recorder.currentPlaybackURL?.path == $0.path } ?? false
-                            let isCurrentAndPlaying = isCurrent && recorder.isPlaying
-                            let isCurrentVideo = videoURL.flatMap { selectedVideoURL?.path == $0.path } ?? false
-                            let isHighlighted = isCurrent || isCurrentVideo
-
-                            Button {
-                                handleRowTap(item: item, audioURL: audioURL, videoURL: videoURL)
-                            } label: {
-                                HStack(spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        HStack(spacing: 6) {
-                                            if item.isRecorderPinned {
-                                                Image(systemName: "pin.fill")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(appEnvironment.accentColor)
-                                            }
-
-                                            Text(item.title)
-                                                .lineLimit(1)
-                                        }
-                                        .font(.subheadline.weight(.semibold))
-
-                                        Text(item.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-
-                                    Spacer(minLength: 8)
-
-                                    if audioURL != nil {
-                                        Image(systemName: isCurrentAndPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                            .font(.title3)
-                                            .foregroundStyle(isCurrent ? appEnvironment.accentColor : .secondary)
-                                    } else if videoURL != nil {
-                                        Image(systemName: "play.rectangle.fill")
-                                            .font(.title3)
-                                            .foregroundStyle(isCurrentVideo ? appEnvironment.accentColor : .secondary)
-                                    } else {
-                                        Text("No media")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(isHighlighted ? appEnvironment.accentColor.opacity(0.18) : Color.white.opacity(0.08))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(isHighlighted ? appEnvironment.accentColor.opacity(0.65) : Color.white.opacity(0.1), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    moveToRecentlyDeleted(item)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                Button {
-                                    togglePinned(item)
-                                } label: {
-                                    Label(item.isRecorderPinned ? "Unpin" : "Pin", systemImage: item.isRecorderPinned ? "pin.slash.fill" : "pin.fill")
-                                }
-                                .tint(appEnvironment.accentColor)
-                            }
-                        }
+                List {
+                    ForEach(recentIdeaItems) { item in
+                        ideaRow(item)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                 }
-                .frame(maxHeight: 170)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func ideaRow(_ item: LibraryItem) -> some View {
+        let audioURL = audioURL(for: item)
+        let isCurrent = audioURL.flatMap { recorder.currentPlaybackURL?.path == $0.path } ?? false
+        let isCurrentAndPlaying = isCurrent && recorder.isPlaying
+        let isHighlighted = isCurrent
+
+        return HStack(spacing: 8) {
+            Button {
+                handleRowTap(item: item, audioURL: audioURL)
+            } label: {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            if item.isRecorderPinned {
+                                Image(systemName: "pin.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(appEnvironment.accentColor)
+                            }
+
+                            Text(item.title)
+                                .lineLimit(1)
+                        }
+                        .font(.subheadline.weight(.semibold))
+
+                        Text(item.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if audioURL != nil {
+                        Image(systemName: isCurrentAndPlaying ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(isCurrent ? appEnvironment.accentColor : .secondary)
+                    } else {
+                        Text("Missing audio")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                beginRename(item)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isHighlighted ? appEnvironment.accentColor.opacity(0.18) : Color.white.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(isHighlighted ? appEnvironment.accentColor.opacity(0.65) : Color.white.opacity(0.1), lineWidth: 1)
+        )
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                moveToRecentlyDeleted(item)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button {
+                togglePinned(item)
+            } label: {
+                Label(item.isRecorderPinned ? "Unpin" : "Pin", systemImage: item.isRecorderPinned ? "pin.slash.fill" : "pin.fill")
+            }
+            .tint(appEnvironment.accentColor)
         }
     }
 
@@ -300,7 +222,9 @@ struct IdeaRecorderView: View {
             VStack(spacing: 8) {
                 HStack(spacing: 10) {
                     Button {
-                        recorder.togglePlayPause()
+                        if !recorder.togglePlayPause(), let message = recorder.playbackErrorMessage {
+                            statusText = "Playback failed: \(message)"
+                        }
                     } label: {
                         Image(systemName: recorder.isPlaying ? "pause.fill" : "play.fill")
                             .font(.headline.weight(.bold))
@@ -319,16 +243,6 @@ struct IdeaRecorderView: View {
                     }
 
                     Spacer(minLength: 8)
-
-                    Button {
-                        showingPlaybackTools = true
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(width: 32, height: 32)
-                            .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
                 }
 
                 Slider(
@@ -345,136 +259,175 @@ struct IdeaRecorderView: View {
                     }
                 )
                 .tint(appEnvironment.accentColor)
+                .animation(.linear(duration: 0.08), value: scrubDisplayTime)
             }
             .padding(.horizontal, 14)
             .padding(.top, 10)
             .padding(.bottom, 10)
-            .background(.ultraThinMaterial)
-            .overlay(alignment: .top) {
-                Divider().opacity(0.22)
-            }
         }
     }
 
-    private var playbackToolsSheet: some View {
-        NavigationStack {
-            Form {
-                Section("Speed") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Playback Speed")
-                            Spacer()
-                            Text(String(format: "%.2fx", recorder.playbackRate))
-                                .font(.body.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
+    private var recorderControlDock: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            transposeControl
 
-                        Slider(
-                            value: Binding(
-                                get: { recorder.playbackRate },
-                                set: { recorder.setPlaybackRate($0) }
-                            ),
-                            in: 0.5...2.0,
-                            step: 0.05
-                        )
-                        .tint(appEnvironment.accentColor)
-                    }
+            VStack(spacing: 8) {
+                if recorder.isRecording {
+                    Text(recordingTimeString(recorder.recordingElapsed))
+                        .font(.title3.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.primary)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
 
-                Section("Transpose / Key") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Transpose")
-                            Spacer()
-                            Text(String(format: "%+.0f st", recorder.playbackSemitoneShift))
-                                .font(.body.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
+                Button {
+                    Task {
+                        await toggleRecording()
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.08))
+                            .frame(width: 92, height: 92)
+                        Circle()
+                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                            .frame(width: 92, height: 92)
 
-                        Slider(
-                            value: Binding(
-                                get: { recorder.playbackSemitoneShift },
-                                set: { recorder.setPlaybackSemitoneShift($0) }
-                            ),
-                            in: -12...12,
-                            step: 1
-                        )
-                        .tint(appEnvironment.accentColor)
-
-                        Picker("From Key", selection: $sourceKeyName) {
-                            ForEach(keyChoices, id: \.self) { key in
-                                Text(key).tag(key)
-                            }
-                        }
-                        .onChange(of: sourceKeyName) { _, _ in
-                            applyKeyShiftFromPickers()
-                        }
-
-                        Picker("To Key", selection: $targetKeyName) {
-                            ForEach(keyChoices, id: \.self) { key in
-                                Text(key).tag(key)
-                            }
-                        }
-                        .onChange(of: targetKeyName) { _, _ in
-                            applyKeyShiftFromPickers()
+                        if recorder.isRecording {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(.red)
+                                .frame(width: 34, height: 34)
+                        } else {
+                            Circle()
+                                .fill(.red)
+                                .frame(width: 58, height: 58)
                         }
                     }
                 }
+                .buttonStyle(.plain)
             }
-            .navigationTitle("Playback Controls")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        showingPlaybackTools = false
-                    }
-                }
+            .frame(maxWidth: .infinity)
+
+            speedControl
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+    }
+
+    private var transposeControl: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Transpose")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Text(String(format: "%+.0f st", recorder.playbackSemitoneShift))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
-            .onAppear {
-                syncKeySelectionFromCurrentPlayback()
+
+            Slider(
+                value: Binding(
+                    get: { recorder.playbackSemitoneShift },
+                    set: { recorder.setPlaybackSemitoneShift($0) }
+                ),
+                in: -12...12,
+                step: 1
+            )
+            .tint(appEnvironment.accentColor)
+
+            HStack(spacing: 8) {
+                compactAdjustButton(systemName: "minus") {
+                    recorder.setPlaybackSemitoneShift(recorder.playbackSemitoneShift - 1)
+                }
+                compactAdjustButton(systemName: "plus") {
+                    recorder.setPlaybackSemitoneShift(recorder.playbackSemitoneShift + 1)
+                }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var speedControl: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Speed")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Text(String(format: "%.2fx", recorder.playbackRate))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            Slider(
+                value: Binding(
+                    get: { recorder.playbackRate },
+                    set: { recorder.setPlaybackRate($0) }
+                ),
+                in: 0.5...2.0,
+                step: 0.05
+            )
+            .tint(appEnvironment.accentColor)
+
+            HStack(spacing: 8) {
+                compactAdjustButton(systemName: "minus") {
+                    recorder.setPlaybackRate(recorder.playbackRate - 0.05)
+                }
+                compactAdjustButton(systemName: "plus") {
+                    recorder.setPlaybackRate(recorder.playbackRate + 0.05)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func compactAdjustButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.caption.weight(.bold))
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private var scrubDisplayTime: Double {
         isScrubbingPlayback ? scrubTime : recorder.playbackCurrentTime
     }
 
-    private func handleRowTap(item: LibraryItem, audioURL: URL?, videoURL: URL?) {
-        if let audioURL {
-            recorder.togglePlayback(for: audioURL)
-            syncKeySelectionFrom(item: item)
+    private func handleRowTap(item: LibraryItem, audioURL: URL?) {
+        guard let audioURL else {
+            statusText = "No playable audio found for this item."
             return
         }
 
-        if let videoURL {
-            loadVideoPreview(url: videoURL, autoplay: true)
-            statusText = "Previewing video for \(item.title)."
-            return
+        if recorder.togglePlayback(for: audioURL) {
+            statusText = recorder.isPlaying ? "Playing \(item.title)." : "Paused \(item.title)."
+        } else if let message = recorder.playbackErrorMessage {
+            statusText = "Playback failed: \(message)"
         }
-
-        statusText = "No playable media found for this item."
     }
 
     private func toggleRecording() async {
         if recorder.isRecording {
             recorder.stopRecording()
-            statusText = recordWithVideo ? "Video stopped. Preview is ready below." : "Recording stopped."
+            saveLatestSnippet()
             return
         }
 
-        let granted = await recorder.requestPermission(includeVideo: recordWithVideo)
+        let granted = await recorder.requestPermission()
         guard granted else {
-            statusText = recordWithVideo
-                ? "Microphone or camera permission denied, or camera unavailable."
-                : "Microphone permission denied."
+            statusText = "Microphone permission denied."
             return
         }
 
         do {
             recorder.captureMetronomeReference(from: services.metronomeEngine)
-            try recorder.startRecording(withVideo: recordWithVideo)
-            statusText = recordWithVideo ? "Recording video..." : "Recording audio..."
+            try recorder.startRecording()
+            statusText = "Recording audio..."
         } catch {
             statusText = "Recording failed: \(error.localizedDescription)"
         }
@@ -482,25 +435,17 @@ struct IdeaRecorderView: View {
 
     private func saveLatestSnippet() {
         guard hasCapture else { return }
-
-        let tags = tagsText
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var storedNotes = notes
-        if let videoPath = recorder.lastRecordedVideoURL?.path {
-            let marker = "Video: \(videoPath)"
-            storedNotes = storedNotes.isEmpty ? marker : "\(storedNotes)\n\(marker)"
-        }
+        let baseTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Idea"
+            : title.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let item = LibraryItem(
             type: .ideaSnippet,
-            title: title.isEmpty ? "Idea \(Date().formatted(date: .numeric, time: .shortened))" : title,
-            notes: storedNotes,
-            tags: tags,
+            title: nextIndexedTitle(for: baseTitle),
+            notes: "",
+            tags: [],
             audioFilePath: recorder.lastRecordedURL?.path,
-            keyCenter: sourceKeyName,
+            keyCenter: "C",
             tempoBPM: nil,
             recorderMetronomeReference: recorder.lastMetronomeReference
         )
@@ -508,25 +453,58 @@ struct IdeaRecorderView: View {
         modelContext.insert(item)
         try? modelContext.save()
 
-        title = ""
-        notes = ""
-        tagsText = ""
-        statusText = recorder.lastRecordedVideoURL != nil
-            ? "Saved. Video preview kept below."
-            : "Saved to Library."
+        statusText = "Saved \(item.title)."
+    }
+
+    private func beginRename(_ item: LibraryItem) {
+        renamingItem = item
+        renameDraft = item.title
+    }
+
+    private func applyRename() {
+        guard let renamingItem else { return }
+        let cleaned = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            self.renamingItem = nil
+            return
+        }
+        renamingItem.title = cleaned
+        renamingItem.updatedAt = .now
+        try? modelContext.save()
+        statusText = "Renamed to \(cleaned)."
+        self.renamingItem = nil
+    }
+
+    private func nextIndexedTitle(for base: String) -> String {
+        let escapedBase = NSRegularExpression.escapedPattern(for: base)
+        let pattern = "^\(escapedBase) \\((\\d+)\\)$"
+        let regex = try? NSRegularExpression(pattern: pattern)
+
+        var maxIndex = 0
+        for item in recorderIdeaItems {
+            if item.title == base {
+                maxIndex = max(maxIndex, 1)
+                continue
+            }
+            guard let regex else { continue }
+            let nsTitle = item.title as NSString
+            let range = NSRange(location: 0, length: nsTitle.length)
+            guard let match = regex.firstMatch(in: item.title, options: [], range: range),
+                  match.numberOfRanges > 1 else { continue }
+            let numberRange = match.range(at: 1)
+            guard numberRange.location != NSNotFound else { continue }
+            let raw = nsTitle.substring(with: numberRange)
+            if let index = Int(raw) {
+                maxIndex = max(maxIndex, index)
+            }
+        }
+
+        return "\(base) (\(maxIndex + 1))"
     }
 
     private func moveToRecentlyDeleted(_ item: LibraryItem) {
         if let path = item.audioFilePath, recorder.currentPlaybackURL?.path == path {
             recorder.stopPlayback(resetSelection: true)
-        }
-
-        if let selectedVideoPath = selectedVideoURL?.path,
-           let itemVideoPath = videoURL(for: item)?.path,
-           selectedVideoPath == itemVideoPath {
-            previewPlayer?.pause()
-            previewPlayer = nil
-            selectedVideoURL = nil
         }
 
         item.isRecorderDeleted = true
@@ -548,100 +526,19 @@ struct IdeaRecorderView: View {
         return URL(fileURLWithPath: path)
     }
 
-    private func videoURL(for item: LibraryItem) -> URL? {
-        let prefix = "Video:"
-        guard let line = item.notes
-            .components(separatedBy: .newlines)
-            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
-            .first(where: { $0.hasPrefix(prefix) }) else { return nil }
-
-        let rawPath = line
-            .replacingOccurrences(of: prefix, with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !rawPath.isEmpty else { return nil }
-
-        let url: URL
-        if rawPath.hasPrefix("file://"), let parsed = URL(string: rawPath) {
-            url = parsed
-        } else {
-            url = URL(fileURLWithPath: rawPath)
-        }
-
-        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        return url
-    }
-
-    private func loadVideoPreview(url: URL, autoplay: Bool) {
-        selectedVideoURL = url
-        let player = AVPlayer(url: url)
-        player.actionAtItemEnd = .pause
-        previewPlayer = player
-        if autoplay {
-            player.seek(to: .zero)
-            player.play()
-        }
-    }
-
-    private func syncKeySelectionFromCurrentPlayback() {
-        guard let path = recorder.currentPlaybackURL?.path,
-              let item = libraryItems.first(where: { $0.audioFilePath == path }) else {
-            sourceKeyName = "C"
-            syncTargetKeyFromSemitone()
-            return
-        }
-
-        syncKeySelectionFrom(item: item)
-    }
-
-    private func syncKeySelectionFrom(item: LibraryItem) {
-        sourceKeyName = normalizedKeyName(item.keyCenter) ?? "C"
-        syncTargetKeyFromSemitone()
-    }
-
-    private func applyKeyShiftFromPickers() {
-        guard let fromIndex = keyChoices.firstIndex(of: sourceKeyName),
-              let toIndex = keyChoices.firstIndex(of: targetKeyName) else {
-            return
-        }
-        recorder.setPlaybackSemitoneShift(Double(toIndex - fromIndex))
-    }
-
-    private func syncTargetKeyFromSemitone() {
-        guard let sourceIndex = keyChoices.firstIndex(of: sourceKeyName), !keyChoices.isEmpty else { return }
-        let shiftedIndex = positiveModulo(sourceIndex + Int(recorder.playbackSemitoneShift), keyChoices.count)
-        targetKeyName = keyChoices[shiftedIndex]
-    }
-
-    private func normalizedKeyName(_ rawValue: String?) -> String? {
-        guard let rawValue else { return nil }
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        if let exact = keyChoices.first(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
-            return exact
-        }
-
-        let mapped = trimmed
-            .replacingOccurrences(of: "Db", with: "C#")
-            .replacingOccurrences(of: "D#", with: "Eb")
-            .replacingOccurrences(of: "Gb", with: "F#")
-            .replacingOccurrences(of: "G#", with: "Ab")
-            .replacingOccurrences(of: "A#", with: "Bb")
-
-        return keyChoices.first(where: { $0.caseInsensitiveCompare(mapped) == .orderedSame })
-    }
-
-    private func positiveModulo(_ value: Int, _ modulus: Int) -> Int {
-        guard modulus != 0 else { return 0 }
-        let remainder = value % modulus
-        return remainder >= 0 ? remainder : remainder + modulus
-    }
-
     private func timeString(_ seconds: TimeInterval) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "00:00" }
         let total = Int(seconds.rounded(.down))
         let minutes = total / 60
         let remaining = total % 60
         return String(format: "%02d:%02d", minutes, remaining)
+    }
+
+    private func recordingTimeString(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
+        let total = Int(seconds.rounded(.down))
+        let minutes = total / 60
+        let remaining = total % 60
+        return String(format: "%d:%02d", minutes, remaining)
     }
 }

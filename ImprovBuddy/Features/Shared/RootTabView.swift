@@ -61,9 +61,51 @@ struct RootTabView: View {
     }
 
     private func seedDemoSongsIfNeeded() {
-        guard songs.isEmpty else { return }
-        Song.demoSongs().forEach(modelContext.insert)
-        try? modelContext.save()
+        if songs.isEmpty {
+            Song.demoSongs().forEach(modelContext.insert)
+            try? modelContext.save()
+        }
+        migrateLegacyDemoSongsIfNeeded()
+    }
+
+    private func migrateLegacyDemoSongsIfNeeded() {
+        let titleMap: [String: String] = [
+            "ii-V-I in C": "Twinkle Twinkle Little Star (example)",
+            "F Blues": "Ode to Joy (example)",
+            "Rhythm Changes (Simple)": "When the Saints Go Marching In (example)"
+        ]
+
+        var didMutate = false
+        for song in songs {
+            let wasLegacySeed = song.composer == "Demo Pack" || titleMap[song.title] != nil
+            guard wasLegacySeed else { continue }
+            var songMutated = false
+
+            if let newTitle = titleMap[song.title], song.title != newTitle {
+                song.title = newTitle
+                songMutated = true
+            }
+            if song.composer == "Demo Pack" {
+                song.composer = nil
+                songMutated = true
+            }
+            if !song.title.lowercased().contains("(example)") {
+                song.title = "\(song.title) (example)"
+                songMutated = true
+            }
+            if !song.form.isEmpty {
+                song.form = []
+                songMutated = true
+            }
+            if songMutated {
+                song.touch()
+                didMutate = true
+            }
+        }
+
+        if didMutate {
+            try? modelContext.save()
+        }
     }
 
     @MainActor
@@ -118,12 +160,13 @@ private struct GlobalToolOverlayHost: View {
         let binding = preferencesBinding(for: kind)
         let prefs = binding.wrappedValue
         let anchor = anchorPoint(for: kind, preferences: prefs, in: proxy)
+        let stackedOffset = stackOffset(for: kind)
         let dragTranslation = activeDragKind == kind ? activeDragTranslation : .zero
         let scaleAnchor = unitPoint(for: prefs.corner)
 
         overlayContent(for: kind, preferences: binding)
             .position(
-                x: anchor.x + dragTranslation.width,
+                x: anchor.x + stackedOffset.width + dragTranslation.width,
                 y: anchor.y + dragTranslation.height
             )
             .gesture(
@@ -134,7 +177,7 @@ private struct GlobalToolOverlayHost: View {
                     }
                     .onEnded { value in
                         let finalPoint = CGPoint(
-                            x: anchor.x + value.translation.width,
+                            x: anchor.x + stackedOffset.width + value.translation.width,
                             y: anchor.y + value.translation.height
                         )
                         commitDrag(kind: kind, finalCenter: finalPoint, in: proxy)
@@ -143,10 +186,15 @@ private struct GlobalToolOverlayHost: View {
                     }
             )
             .opacity(suppressed ? 0 : 1)
-            .scaleEffect(suppressed ? 0.82 : 1, anchor: scaleAnchor)
-            .blur(radius: suppressed ? 0.6 : 0)
+            .scaleEffect(suppressed ? 0.9 : 1, anchor: scaleAnchor)
+            .blur(radius: suppressed ? 0.2 : 0)
             .allowsHitTesting(!suppressed)
-            .animation(.spring(response: 0.32, dampingFraction: 0.74), value: suppressed)
+            .animation(
+                suppressed
+                    ? .easeOut(duration: 0.08)
+                    : .spring(response: 0.3, dampingFraction: 0.72),
+                value: suppressed
+            )
             .animation(.easeOut(duration: 0.16), value: prefs.corner)
             .animation(.easeOut(duration: 0.16), value: prefs.isExpanded)
             .animation(.easeOut(duration: 0.16), value: prefs.isVisible)
@@ -184,7 +232,7 @@ private struct GlobalToolOverlayHost: View {
                 Image(systemName: "chevron.up")
                     .font(.caption2.weight(.bold))
             }
-            .frame(width: 38, height: 46)
+            .frame(width: 36, height: 44)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -203,7 +251,7 @@ private struct GlobalToolOverlayHost: View {
         } label: {
             Image(systemName: kind == .tuner ? "tuningfork" : "metronome")
                 .font(.caption.weight(.bold))
-                .frame(width: 28, height: 28)
+                .frame(width: 26, height: 26)
                 .background(.ultraThinMaterial, in: Circle())
                 .overlay(
                     Circle()
@@ -218,19 +266,19 @@ private struct GlobalToolOverlayHost: View {
         preferences: ToolOverlayPreferences,
         in proxy: GeometryProxy
     ) -> CGPoint {
-        let safeTopInset = max(proxy.safeAreaInsets.top, 44)
+        let safeTopInset = max(proxy.safeAreaInsets.top, 48)
         let safeBottomInset = max(proxy.safeAreaInsets.bottom, 34)
         let expandedSize = expandedOverlaySize(for: kind)
         let width: CGFloat = preferences.isVisible
-            ? (preferences.isExpanded ? expandedSize.width : 38)
-            : 32
+            ? (preferences.isExpanded ? expandedSize.width : 36)
+            : 26
         let height: CGFloat = preferences.isVisible
-            ? (preferences.isExpanded ? expandedSize.height : 46)
-            : 32
+            ? (preferences.isExpanded ? expandedSize.height : 44)
+            : 26
 
-        let leftX = proxy.safeAreaInsets.leading + width * 0.5 + 10
-        let rightX = proxy.size.width - proxy.safeAreaInsets.trailing - width * 0.5 - 10
-        let topY = safeTopInset + height * 0.5 + 18
+        let leftX = proxy.safeAreaInsets.leading + width * 0.5 + 12
+        let rightX = proxy.size.width - proxy.safeAreaInsets.trailing - width * 0.5 - 12
+        let topY = safeTopInset + height * 0.5 + 24
         let bottomY = proxy.size.height - safeBottomInset - height * 0.5 - 86
         let middleY = (topY + bottomY) * 0.5
 
@@ -251,9 +299,14 @@ private struct GlobalToolOverlayHost: View {
     }
 
     private func commitDrag(kind: ToolOverlayKind, finalCenter: CGPoint, in proxy: GeometryProxy) {
+        let stackedOffset = stackOffset(for: kind)
+        let unstackedCenter = CGPoint(
+            x: finalCenter.x - stackedOffset.width,
+            y: finalCenter.y
+        )
         var preferences = preferencesBinding(for: kind).wrappedValue
         preferences.corner = nearestCorner(
-            for: finalCenter,
+            for: unstackedCenter,
             kind: kind,
             preferences: preferences,
             in: proxy
@@ -281,9 +334,38 @@ private struct GlobalToolOverlayHost: View {
     private func expandedOverlaySize(for kind: ToolOverlayKind) -> CGSize {
         switch kind {
         case .tuner:
-            return CGSize(width: 178, height: 118)
+            return CGSize(width: 146, height: 110)
         case .bpm:
-            return CGSize(width: 188, height: 156)
+            return CGSize(width: 166, height: 138)
+        }
+    }
+
+    private func overlaySize(for kind: ToolOverlayKind, preferences: ToolOverlayPreferences) -> CGSize {
+        if !preferences.isVisible {
+            return CGSize(width: 26, height: 26)
+        }
+        if preferences.isExpanded {
+            return expandedOverlaySize(for: kind)
+        }
+        return CGSize(width: 36, height: 44)
+    }
+
+    private func stackOffset(for kind: ToolOverlayKind) -> CGSize {
+        let tunerPrefs = services.toolOverlayPreferences.tuner
+        let bpmPrefs = services.toolOverlayPreferences.bpm
+        guard tunerPrefs.corner == bpmPrefs.corner else { return .zero }
+
+        let corner = tunerPrefs.corner
+        let tunerSize = overlaySize(for: .tuner, preferences: tunerPrefs)
+        let bpmSize = overlaySize(for: .bpm, preferences: bpmPrefs)
+        let gap: CGFloat = 8
+        let xShift = (tunerSize.width * 0.5) + (bpmSize.width * 0.5) + gap
+
+        switch corner {
+        case .topLeft, .middleLeft, .bottomLeft:
+            return kind == .bpm ? CGSize(width: xShift, height: 0) : .zero
+        case .topRight, .middleRight, .bottomRight:
+            return kind == .bpm ? CGSize(width: -xShift, height: 0) : .zero
         }
     }
 
@@ -352,7 +434,7 @@ private struct MiniTunerOverlayView: View {
     @Binding var preferences: ToolOverlayPreferences
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Tuner")
                     .font(.caption.weight(.semibold))
@@ -364,45 +446,54 @@ private struct MiniTunerOverlayView: View {
                     Image(systemName: "chevron.compact.up")
                 }
                 .buttonStyle(.plain)
-
-                Button {
-                    preferences.isVisible = false
-                    preferences.isExpanded = false
-                } label: {
-                    Image(systemName: "eye.slash")
-                }
-                .buttonStyle(.plain)
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(services.tunerEngine.noteName)
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .font(.system(size: 25, weight: .heavy, design: .rounded))
                 Text(String(format: "%+.1f", services.tunerEngine.cents))
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(centsColor)
             }
 
-            HStack(spacing: 6) {
-                Capsule()
-                    .fill(Color.white.opacity(0.12))
-                    .frame(height: 7)
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(centsColor)
-                            .frame(width: CGFloat(progress) * 108, height: 7)
-                    }
-                Text("\(Int(round(services.tunerEngine.confidence * 100)))%")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .frame(height: 10)
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [.red, .yellow, .green, .yellow, .red],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
-            Text(services.tunerEngine.isStable ? "Stable" : "Listening")
-                .font(.caption2)
-                .foregroundStyle(services.tunerEngine.isStable ? .green : .secondary)
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(Color.white.opacity(0.94))
+                        .frame(width: 2, height: 14)
+                        .offset(x: meterPosition * max(0, geo.size.width - 2))
+                }
+            }
+            .frame(height: 14)
+
+            HStack {
+                Text("♭")
+                    .foregroundStyle(tuningState == .flat ? .white : .secondary)
+                Spacer()
+                Text("♮")
+                    .foregroundStyle(tuningState == .perfect ? .white : .secondary)
+                Spacer()
+                Text("♯")
+                    .foregroundStyle(tuningState == .sharp ? .white : .secondary)
+            }
+            .font(.caption2.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .allowsTightening(true)
+
         }
-        .padding(10)
-        .frame(width: 178)
+        .padding(9)
+        .frame(width: 146)
+        .frame(minHeight: 110)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -413,13 +504,30 @@ private struct MiniTunerOverlayView: View {
     private var centsColor: Color {
         switch abs(services.tunerEngine.cents) {
         case 0..<6: .green
-        case 6..<16: .yellow
+        case 6..<20: .yellow
         default: .orange
         }
     }
 
-    private var progress: Double {
-        max(0, min(1, 1 - (abs(services.tunerEngine.cents) / 35)))
+    private var meterPosition: CGFloat {
+        let normalized = (services.tunerEngine.cents + 50) / 100
+        return CGFloat(max(0, min(1, normalized)))
+    }
+
+    private enum TuningState {
+        case flat
+        case perfect
+        case sharp
+    }
+
+    private var tuningState: TuningState {
+        if services.tunerEngine.cents < -6 {
+            return .flat
+        }
+        if services.tunerEngine.cents > 6 {
+            return .sharp
+        }
+        return .perfect
     }
 }
 
@@ -430,9 +538,15 @@ private struct MiniBPMOverlayView: View {
 
     @State private var beatFlash = false
     @State private var displayedBPM = 120.0
+    @State private var lastHapticStep = 120
+    @State private var nudgeVisualOffset: CGFloat = 0
+    @State private var dragBaseBPM: Double?
+#if os(iOS)
+    private let bpmStepFeedback = UISelectionFeedbackGenerator()
+#endif
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text("BPM")
                     .font(.caption.weight(.semibold))
@@ -444,19 +558,11 @@ private struct MiniBPMOverlayView: View {
                     Image(systemName: "chevron.compact.down")
                 }
                 .buttonStyle(.plain)
-
-                Button {
-                    preferences.isVisible = false
-                    preferences.isExpanded = false
-                } label: {
-                    Image(systemName: "eye.slash")
-                }
-                .buttonStyle(.plain)
             }
 
             HStack(spacing: 8) {
                 Text("\(Int(round(displayedBPM)))")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .monospacedDigit()
 
                 Text("BPM")
@@ -472,42 +578,41 @@ private struct MiniBPMOverlayView: View {
                 Spacer()
             }
 
-            HStack(spacing: 8) {
-                Button(services.metronomeEngine.isRunning ? "Stop" : "Start") {
-                    if services.metronomeEngine.isRunning {
-                        services.metronomeEngine.stop()
-                    } else {
-                        services.metronomeEngine.start()
+            HStack(spacing: 10) {
+                VStack(spacing: 7) {
+                    Button(services.metronomeEngine.isRunning ? "Stop" : "Start") {
+                        if services.metronomeEngine.isRunning {
+                            services.metronomeEngine.stop()
+                        } else {
+                            services.metronomeEngine.start()
+                        }
+                        beatFlash = false
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.borderedProminent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
 
-                Button("Tap") {
-                    if let tappedBPM = services.metronomeEngine.registerTapTempo() {
-                        setBPM(tappedBPM)
+                    Button("Tap") {
+                        if let tappedBPM = services.metronomeEngine.registerTapTempo() {
+                            setBPM(tappedBPM)
+                        }
                     }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.bordered)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
                 }
                 .frame(maxWidth: .infinity)
-                .buttonStyle(.bordered)
-            }
 
-            HStack(spacing: 8) {
-                Button("-") {
-                    setBPM(displayedBPM - 1)
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.bordered)
-
-                Button("+") {
-                    setBPM(displayedBPM + 1)
-                }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.bordered)
+                miniTempoVerticalSlider
             }
         }
         .padding(10)
-        .frame(width: 188)
+        .frame(width: 166)
+        .frame(minHeight: 138)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -515,9 +620,14 @@ private struct MiniBPMOverlayView: View {
         )
         .onAppear {
             displayedBPM = services.metronomeEngine.bpm
+            lastHapticStep = Int(round(displayedBPM))
+#if os(iOS)
+            bpmStepFeedback.prepare()
+#endif
         }
         .onChange(of: services.metronomeEngine.bpm) { _, newValue in
             displayedBPM = newValue
+            lastHapticStep = Int(round(newValue))
         }
         .onChange(of: services.metronomeEngine.beatPulseID) { _, _ in
             guard services.metronomeEngine.isRunning else { return }
@@ -533,7 +643,66 @@ private struct MiniBPMOverlayView: View {
         }
     }
 
-    private func setBPM(_ value: Double) {
+    private var miniTempoVerticalSlider: some View {
+        GeometryReader { geo in
+            let height = max(geo.size.height, 1)
+            let thumbSize: CGFloat = 18
+            let visualTravel = max(1, (height - thumbSize) * 0.5)
+            let thumbOffset = max(-visualTravel, min(visualTravel, nudgeVisualOffset))
+
+            ZStack(alignment: .center) {
+                Capsule()
+                    .fill(Color.white.opacity(0.14))
+                    .frame(width: 12, height: height)
+
+                Capsule()
+                    .fill(appEnvironment.accentColor.opacity(0.18))
+                    .frame(width: 12, height: max(thumbSize, abs(thumbOffset) + thumbSize * 0.35))
+                    .offset(y: thumbOffset * 0.5)
+
+                Rectangle()
+                    .fill(Color.white.opacity(0.78))
+                    .frame(width: 8, height: 2)
+
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: thumbSize, height: thumbSize)
+                    .overlay(
+                        Circle()
+                            .stroke(appEnvironment.accentColor.opacity(0.82), lineWidth: 2.2)
+                    )
+                    .offset(y: thumbOffset)
+            }
+            .frame(width: 28, height: height)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if dragBaseBPM == nil {
+                            dragBaseBPM = displayedBPM
+                        }
+
+                        let rawTranslation = value.translation.height
+                        nudgeVisualOffset = max(-visualTravel, min(visualTravel, rawTranslation))
+
+                        // Precision nudge: short drags map to small BPM deltas.
+                        let clampedBPMTranslation = max(-120.0, min(120.0, Double(rawTranslation)))
+                        let delta = -clampedBPMTranslation * 0.08
+                        let base = dragBaseBPM ?? displayedBPM
+                        setBPM((base + delta).rounded(), emitHaptic: true)
+                    }
+                    .onEnded { _ in
+                        dragBaseBPM = nil
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+                            nudgeVisualOffset = 0
+                        }
+                    }
+            )
+        }
+        .frame(width: 28, height: 90)
+    }
+
+    private func setBPM(_ value: Double, emitHaptic: Bool = false) {
         let clamped = max(30, min(320, value))
         displayedBPM = clamped
         services.metronomeEngine.setBPM(clamped)
@@ -541,5 +710,17 @@ private struct MiniBPMOverlayView: View {
         var settings = services.toolsSettings.metronome
         settings.bpm = clamped
         services.toolsSettings.metronome = settings
+        emitBPMStepHapticIfNeeded(for: clamped, enabled: emitHaptic)
+    }
+
+    private func emitBPMStepHapticIfNeeded(for value: Double, enabled: Bool) {
+        guard enabled else { return }
+        let newStep = Int(round(value))
+        guard newStep != lastHapticStep else { return }
+        lastHapticStep = newStep
+#if os(iOS)
+        bpmStepFeedback.selectionChanged()
+        bpmStepFeedback.prepare()
+#endif
     }
 }

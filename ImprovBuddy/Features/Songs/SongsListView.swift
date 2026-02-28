@@ -1,8 +1,10 @@
 import Foundation
 import PDFKit
+import QuickLook
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 enum SongSortMode: String, CaseIterable, Identifiable {
     case recent
@@ -211,6 +213,73 @@ enum PDFSongMetadataExtractor {
     }
 }
 
+enum SongMediaStorage {
+    static let folderName = "SongMedia"
+
+    static var allowedImportTypes: [UTType] {
+        [.pdf, .image]
+    }
+
+    static func copyAttachments(from urls: [URL]) throws -> [SongAttachment] {
+        guard !urls.isEmpty else { return [] }
+        let destinationFolder = try mediaFolderURL()
+
+        var attachments: [SongAttachment] = []
+        attachments.reserveCapacity(urls.count)
+
+        for source in urls {
+            guard let kind = attachmentKind(for: source) else { continue }
+            let fileName = source.lastPathComponent.replacingOccurrences(of: "/", with: "-")
+            let destination = destinationFolder.appendingPathComponent("\(UUID().uuidString)-\(fileName)")
+
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: source, to: destination)
+
+            attachments.append(
+                SongAttachment(
+                    kind: kind,
+                    path: destination.absoluteString,
+                    originalFileName: source.lastPathComponent
+                )
+            )
+        }
+
+        return attachments
+    }
+
+    static func titleFallback(from attachment: SongAttachment?) -> String {
+        guard let attachment else { return "Untitled Song" }
+        let rawName = (attachment.originalFileName as NSString).deletingPathExtension
+        let cleaned = rawName
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? "Untitled Song" : cleaned
+    }
+
+    private static func mediaFolderURL() throws -> URL {
+        guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let folder = documents.appendingPathComponent(folderName, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    private static func attachmentKind(for source: URL) -> SongAttachmentKind? {
+        let ext = source.pathExtension.lowercased()
+        if ext == "pdf" {
+            return .pdf
+        }
+        if let type = UTType(filenameExtension: ext), type.conforms(to: .image) {
+            return .image
+        }
+        return nil
+    }
+}
+
 struct SongQuickTagPopup: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -258,9 +327,28 @@ struct SongQuickTagPopup: View {
             .padding()
             .navigationTitle("Quick Tags")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+            .navigationBarBackButtonHidden(true)
+            .safeAreaInset(edge: .bottom) {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Back", systemImage: "chevron.backward")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .top) {
+                    Divider().opacity(0.2)
                 }
             }
         }
@@ -338,9 +426,28 @@ struct SongTagManagerSheet: View {
             .padding()
             .navigationTitle("Manage Tags")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+            .navigationBarBackButtonHidden(true)
+            .safeAreaInset(edge: .bottom) {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Back", systemImage: "chevron.backward")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .top) {
+                    Divider().opacity(0.2)
                 }
             }
         }
@@ -380,9 +487,8 @@ struct SongsWorkspaceView: View {
     @State private var editingSong: Song?
     @State private var quickTagSong: Song?
     @State private var showingTagManager = false
-    @State private var showingDetailPager = false
-    @State private var detailSongID: UUID?
-    @State private var showingPDFImport = false
+    @State private var detailRoute: SongDetailRoute?
+    @State private var showingMediaImport = false
     @State private var importMessage = ""
 
     private var tagCatalog: SongTagCatalog {
@@ -447,22 +553,20 @@ struct SongsWorkspaceView: View {
                     recentTagsStore.markUsed(tag: tag)
                 }
             }
-            .fullScreenCover(isPresented: $showingDetailPager) {
+            .navigationDestination(item: $detailRoute) { route in
                 SongDetailPagerView(
                     songs: filteredSongs,
-                    initialSongID: detailSongID
-                ) { selectedSong in
-                    detailSongID = selectedSong.id
-                    showingDetailPager = false
-                }
+                    initialSongID: route.initialSongID
+                )
             }
             .fileImporter(
-                isPresented: $showingPDFImport,
-                allowedContentTypes: [.pdf],
-                allowsMultipleSelection: false
+                isPresented: $showingMediaImport,
+                allowedContentTypes: SongMediaStorage.allowedImportTypes,
+                allowsMultipleSelection: true
             ) { result in
-                importSongFromPDF(result)
+                importSongFromMedia(result)
             }
+            .onAppear(perform: migrateLegacySongMediaIfNeeded)
         }
     }
 
@@ -502,9 +606,9 @@ struct SongsWorkspaceView: View {
                 .buttonStyle(.borderedProminent)
 
                 Button {
-                    showingPDFImport = true
+                    showingMediaImport = true
                 } label: {
-                    Label("Import PDF", systemImage: "doc.richtext")
+                    Label("Import", systemImage: "doc.richtext")
                 }
                 .buttonStyle(.bordered)
 
@@ -588,16 +692,9 @@ struct SongsWorkspaceView: View {
                     SongWorkspaceRow(song: song)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            detailSongID = song.id
-                            showingDetailPager = true
+                            detailRoute = SongDetailRoute(initialSongID: song.id)
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                editingSong = song
-                            } label: {
-                                Label("Edit", systemImage: "square.and.pencil")
-                            }
-
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 delete(song)
                             } label: {
@@ -641,46 +738,65 @@ struct SongsWorkspaceView: View {
         try? modelContext.save()
     }
 
-    private func importSongFromPDF(_ result: Result<[URL], Error>) {
-        guard case let .success(urls) = result, let source = urls.first else { return }
-        _ = source.startAccessingSecurityScopedResource()
-        defer { source.stopAccessingSecurityScopedResource() }
+    private func importSongFromMedia(_ result: Result<[URL], Error>) {
+        guard case let .success(urls) = result, !urls.isEmpty else { return }
+
+        let securedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
+        defer {
+            for securedURL in securedURLs {
+                securedURL.stopAccessingSecurityScopedResource()
+            }
+        }
 
         do {
-            guard let destinationFolder = FileManager.default
-                .urls(for: .documentDirectory, in: .userDomainMask)
-                .first?
-                .appendingPathComponent("SongPDFs", isDirectory: true) else {
-                importMessage = "PDF import failed: Missing documents directory."
+            let attachments = try SongMediaStorage.copyAttachments(from: urls)
+            guard !attachments.isEmpty else {
+                importMessage = "Import failed: No supported file types selected."
                 return
             }
 
-            try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
-            let destination = destinationFolder.appendingPathComponent("\(UUID().uuidString)-\(source.lastPathComponent)")
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
-            }
-            try FileManager.default.copyItem(at: source, to: destination)
+            let firstPDF = attachments.first(where: { $0.kind == .pdf })
+            let metadata: PDFSongMetadata? = {
+                guard
+                    let firstPDF,
+                    let pdfURL = firstPDF.resolvedURL
+                else { return nil }
+                return PDFSongMetadataExtractor.extract(from: pdfURL)
+            }()
 
-            let metadata = PDFSongMetadataExtractor.extract(from: destination)
+            let title = metadata?.title ?? SongMediaStorage.titleFallback(from: attachments.first)
             let newSong = Song(
-                title: metadata.title,
-                composer: metadata.author,
+                title: title,
+                composer: metadata?.author,
                 styleTags: [],
                 defaultTempoBPM: 120,
                 feel: .swing,
                 timeSignatureTop: 4,
                 timeSignatureBottom: 4,
-                form: [Measure(index: 0, sectionLabel: "A", chordSymbol: "Cmaj7")],
-                pdfReferencePath: destination.absoluteString
+                form: [],
+                pdfReferencePath: firstPDF?.path,
+                attachments: attachments
             )
             modelContext.insert(newSong)
             try? modelContext.save()
 
-            importMessage = "Imported PDF as \"\(metadata.title)\" (\(metadata.source.rawValue))."
+            importMessage = "Imported \(attachments.count) file\(attachments.count == 1 ? "" : "s") into \"\(title)\"."
             editingSong = newSong
         } catch {
-            importMessage = "PDF import failed: \(error.localizedDescription)"
+            importMessage = "Import failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func migrateLegacySongMediaIfNeeded() {
+        var didMutate = false
+        for song in songs {
+            if song.migrateLegacyPDFReferenceIfNeeded() {
+                song.touch()
+                didMutate = true
+            }
+        }
+        if didMutate {
+            try? modelContext.save()
         }
     }
 }
@@ -712,6 +828,9 @@ private struct SongWorkspaceRow: View {
                 if let composer = song.composer, !composer.isEmpty {
                     Text(composer)
                 }
+                if !song.mediaAttachments.isEmpty {
+                    Text("\(song.mediaAttachments.count) file\(song.mediaAttachments.count == 1 ? "" : "s")")
+                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -734,49 +853,84 @@ private struct SongWorkspaceRow: View {
     }
 }
 
+private struct SongDetailRoute: Identifiable, Hashable {
+    let id = UUID()
+    let initialSongID: UUID
+}
+
 private struct SongDetailPagerView: View {
+    @Environment(\.dismiss) private var dismiss
     let songs: [Song]
     let initialSongID: UUID?
-    var onClose: (Song) -> Void
 
-    @Environment(\.dismiss) private var dismiss
     @State private var selectedIndex = 0
 
+    private var selectedSong: Song? {
+        guard songs.indices.contains(selectedIndex) else { return nil }
+        return songs[selectedIndex]
+    }
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if songs.isEmpty {
-                    ContentUnavailableView("No songs", systemImage: "music.note.list")
-                } else {
-                    TabView(selection: $selectedIndex) {
-                        ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                            SongDetailPage(song: song)
-                                .tag(index)
-                                .padding(.bottom, 18)
-                        }
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .always))
-                }
-            }
-            .navigationTitle("Song Detail")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        if songs.indices.contains(selectedIndex) {
-                            onClose(songs[selectedIndex])
-                        }
-                        dismiss()
+        Group {
+            if songs.isEmpty {
+                ContentUnavailableView("No songs", systemImage: "music.note.list")
+            } else {
+                TabView(selection: $selectedIndex) {
+                    ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                        SongDetailPage(song: song)
+                        .tag(index)
                     }
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never))
             }
-            .onAppear {
-                if let initialSongID,
-                   let index = songs.firstIndex(where: { $0.id == initialSongID }) {
-                    selectedIndex = index
-                } else {
-                    selectedIndex = 0
+        }
+        .safeAreaInset(edge: .bottom) {
+            HStack(spacing: 10) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Back", systemImage: "chevron.backward")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
                 }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                if let selectedSong {
+                    VStack(spacing: 2) {
+                        Text(selectedSong.title)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                        HStack(spacing: 4) {
+                            ForEach(Array(songs.indices), id: \.self) { index in
+                                Circle()
+                                    .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.35))
+                                    .frame(width: 6, height: 6)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+            .background(.ultraThinMaterial)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .onAppear {
+            if let initialSongID,
+               let index = songs.firstIndex(where: { $0.id == initialSongID }) {
+                selectedIndex = index
+            } else {
+                selectedIndex = 0
             }
         }
     }
@@ -784,265 +938,724 @@ private struct SongDetailPagerView: View {
 
 private struct SongDetailPage: View {
     @Environment(\.modelContext) private var modelContext
-    @Bindable var song: Song
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    let song: Song
 
-    @State private var isChordFormExpanded = true
-    @State private var showingPDFAttachPicker = false
-    @State private var pdfAttachMessage = ""
+    @State private var showingMediaAttachPicker = false
+    @State private var mediaAttachMessage = ""
+    @State private var previewIndex = 0
+    @State private var twoPageMode = false
+    @State private var readerRefreshToken = UUID()
+    @State private var markupSession: SongMarkupSession?
 
-    private let chordGridColumns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
-
-    private var pdfURL: URL? {
-        guard let raw = song.pdfReferencePath else { return nil }
-        return URL(string: raw)
+    private var attachments: [SongAttachment] {
+        song.mediaAttachments
     }
 
-    private var groupedForm: [SongFormSectionGroup] {
-        let ordered = song.flattenedForm
-        guard !ordered.isEmpty else { return [] }
+    private var isRegularWidth: Bool {
+        horizontalSizeClass == .regular
+    }
 
-        var groups: [SongFormSectionGroup] = []
-        var currentMeasures: [Measure] = []
-        var currentLabel = "Form"
-        var groupIndex = 0
-
-        for measure in ordered {
-            let explicitLabel = measure.sectionLabel?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let nextLabel = (explicitLabel?.isEmpty == false ? explicitLabel : nil) ?? currentLabel
-
-            if currentMeasures.isEmpty {
-                currentLabel = nextLabel
-            } else if nextLabel != currentLabel {
-                groups.append(SongFormSectionGroup(id: groupIndex, label: currentLabel, measures: currentMeasures))
-                groupIndex += 1
-                currentMeasures.removeAll(keepingCapacity: true)
-                currentLabel = nextLabel
-            }
-
-            currentMeasures.append(measure)
+    private func readerHeight(for containerHeight: CGFloat) -> CGFloat {
+        if isRegularWidth {
+            // Favor music-first reading on iPad/regular-width layouts.
+            let target = containerHeight - 120
+            return min(max(target, 620), containerHeight * 0.95)
         }
 
-        if !currentMeasures.isEmpty {
-            groups.append(SongFormSectionGroup(id: groupIndex, label: currentLabel, measures: currentMeasures))
-        }
-
-        return groups
+        let target = containerHeight * 0.74
+        return min(max(target, 360), containerHeight * 0.86)
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(song.title)
-                        .font(.title2.weight(.bold))
-                    if let composer = song.composer, !composer.isEmpty {
-                        Text(composer)
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let composer = song.composer, !composer.isEmpty {
+                            Text(composer)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("\(Int(song.defaultTempoBPM)) BPM • \(song.feel.displayName) • \(song.timeSignatureTop)/\(song.timeSignatureBottom)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    Text("\(Int(song.defaultTempoBPM)) BPM • \(song.feel.displayName) • \(song.timeSignatureTop)/\(song.timeSignatureBottom)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                if !song.tags.isEmpty {
-                    HStack(spacing: 6) {
-                        ForEach(song.tags, id: \.self) { tag in
-                            Text(tag)
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.08), in: Capsule())
-                        }
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    DisclosureGroup(isExpanded: $isChordFormExpanded) {
-                        if groupedForm.isEmpty {
-                            Text("No chord form added.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 8)
-                        } else {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(groupedForm) { group in
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(group.label)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.secondary)
-
-                                        LazyVGrid(columns: chordGridColumns, alignment: .leading, spacing: 8) {
-                                            ForEach(group.measures, id: \.id) { measure in
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text("\(measure.index + 1)")
-                                                        .font(.caption2.monospacedDigit())
-                                                        .foregroundStyle(.secondary)
-                                                    Text(measure.chordSymbol)
-                                                        .font(.subheadline.weight(.semibold))
-                                                        .lineLimit(1)
-                                                        .minimumScaleFactor(0.75)
-                                                }
-                                                .padding(10)
-                                                .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
-                                                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                            }
-                                        }
-                                    }
-                                }
+                    if !song.tags.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(song.tags, id: \.self) { tag in
+                                Text(tag)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.white.opacity(0.08), in: Capsule())
                             }
-                            .padding(.top, 8)
-                        }
-                    } label: {
-                        HStack {
-                            Text("Chord Form")
-                                .font(.headline)
-                            Spacer()
-                            Text("\(song.flattenedForm.count) bars")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
                         }
                     }
-                }
 
-                if let pdfURL {
-                    SongPDFSwipePreview(url: pdfURL)
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Button {
-                            showingPDFAttachPicker = true
-                        } label: {
-                            Label("Attach a PDF", systemImage: "paperclip")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
+                    if attachments.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("No sheet music attached yet.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                showingMediaAttachPicker = true
+                            } label: {
+                                Label("Attach Sheet Music", systemImage: "paperclip")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+
+                            if !mediaAttachMessage.isEmpty {
+                                Text(mediaAttachMessage)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                        .padding(.top, 8)
+                    } else {
+                        SongAttachmentReaderPanel(
+                            attachments: attachments,
+                            pageIndex: $previewIndex,
+                            twoPageMode: $twoPageMode,
+                            refreshToken: readerRefreshToken
+                        ) { selectedPageIndex in
+                            markupSession = SongMarkupSession(initialIndex: selectedPageIndex)
+                        }
+                        .frame(height: readerHeight(for: proxy.size.height))
+                        .padding(.horizontal, -16)
+                        .frame(maxWidth: .infinity)
 
-                        if !pdfAttachMessage.isEmpty {
-                            Text(pdfAttachMessage)
+                        HStack {
+                            Button("Add Files") {
+                                showingMediaAttachPicker = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                            Spacer()
+                        }
+
+                        attachmentList
+
+                        if !mediaAttachMessage.isEmpty {
+                            Text(mediaAttachMessage)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .padding(.top, 4)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
+                .frame(maxWidth: .infinity, alignment: .top)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 12)
         }
         .fileImporter(
-            isPresented: $showingPDFAttachPicker,
-            allowedContentTypes: [.pdf],
-            allowsMultipleSelection: false
+            isPresented: $showingMediaAttachPicker,
+            allowedContentTypes: SongMediaStorage.allowedImportTypes,
+            allowsMultipleSelection: true
         ) { result in
-            attachPDF(result)
+            attachMedia(result)
+        }
+        .sheet(item: $markupSession) { session in
+            SongMarkupEditorSheet(
+                attachments: attachments,
+                initialIndex: session.initialIndex
+            ) {
+                readerRefreshToken = UUID()
+            }
+        }
+        .onAppear {
+            if song.migrateLegacyPDFReferenceIfNeeded() {
+                song.touch()
+                try? modelContext.save()
+            }
+            if attachments.indices.contains(previewIndex) == false {
+                previewIndex = max(0, attachments.count - 1)
+            }
+            if attachments.count < 2 {
+                twoPageMode = false
+            }
         }
     }
 
-    private func attachPDF(_ result: Result<[URL], Error>) {
-        guard case let .success(urls) = result, let source = urls.first else { return }
+    private var attachmentList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(attachments.enumerated()), id: \.element.id) { index, attachment in
+                HStack(spacing: 10) {
+                    Image(systemName: attachment.kind == .pdf ? "doc.richtext" : "photo")
+                        .foregroundStyle(.secondary)
+                    Text(attachment.originalFileName)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                    Spacer()
+                    Button {
+                        removeAttachment(id: attachment.id)
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    previewIndex = index
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+    }
 
-        guard let destinationFolder = FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)
-            .first?
-            .appendingPathComponent("SongPDFs", isDirectory: true) else {
-            pdfAttachMessage = "PDF attach failed: Missing documents directory."
-            return
+    private func attachMedia(_ result: Result<[URL], Error>) {
+        guard case let .success(urls) = result, !urls.isEmpty else { return }
+
+        let securedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
+        defer {
+            for securedURL in securedURLs {
+                securedURL.stopAccessingSecurityScopedResource()
+            }
         }
 
+        let previousCount = attachments.count
         do {
-            try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
-            let destination = destinationFolder.appendingPathComponent("\(UUID().uuidString)-\(source.lastPathComponent)")
-
-            _ = source.startAccessingSecurityScopedResource()
-            defer { source.stopAccessingSecurityScopedResource() }
-
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
+            let imported = try SongMediaStorage.copyAttachments(from: urls)
+            guard !imported.isEmpty else {
+                mediaAttachMessage = "No supported files selected."
+                return
             }
 
-            try FileManager.default.copyItem(at: source, to: destination)
+            song.addAttachments(imported)
+            if song.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if
+                    let firstPDF = imported.first(where: { $0.kind == .pdf }),
+                    let pdfURL = firstPDF.resolvedURL
+                {
+                    let metadata = PDFSongMetadataExtractor.extract(from: pdfURL)
+                    song.title = metadata.title
+                    if song.composer?.isEmpty ?? true {
+                        song.composer = metadata.author
+                    }
+                } else {
+                    song.title = SongMediaStorage.titleFallback(from: imported.first)
+                }
+            }
 
-            song.pdfReferencePath = destination.absoluteString
             song.touch()
             try? modelContext.save()
-            pdfAttachMessage = ""
+            previewIndex = min(max(0, previousCount), max(0, song.mediaAttachments.count - 1))
+            if song.mediaAttachments.count < 2 {
+                twoPageMode = false
+            }
+            mediaAttachMessage = "Added \(imported.count) file\(imported.count == 1 ? "" : "s")."
         } catch {
-            pdfAttachMessage = "PDF attach failed: \(error.localizedDescription)"
+            mediaAttachMessage = "Attach failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func removeAttachment(id: UUID) {
+        song.removeAttachment(id: id)
+        song.touch()
+        try? modelContext.save()
+        previewIndex = min(previewIndex, max(0, attachments.count - 1))
+        if attachments.count < 2 {
+            twoPageMode = false
         }
     }
 }
 
-private struct SongFormSectionGroup: Identifiable {
-    let id: Int
-    let label: String
-    let measures: [Measure]
-}
+private struct SongAttachmentReaderPanel: View {
+    let attachments: [SongAttachment]
+    @Binding var pageIndex: Int
+    @Binding var twoPageMode: Bool
+    let refreshToken: UUID
+    var onMarkup: (Int) -> Void
 
-private struct SongPDFSwipePreview: View {
-    let url: URL
+    private var clampedPageIndex: Int {
+        min(max(0, pageIndex), max(0, attachments.count - 1))
+    }
 
-    @State private var pageImages: [UIImage] = []
-    @State private var pageIndex = 0
+    private var rightPageIndex: Int? {
+        guard twoPageMode else { return nil }
+        let candidate = clampedPageIndex + 1
+        return attachments.indices.contains(candidate) ? candidate : nil
+    }
+
+    private var pageLabel: String {
+        if twoPageMode {
+            let start = clampedPageIndex + 1
+            let end = min(clampedPageIndex + 2, attachments.count)
+            return "\(start)-\(end) / \(attachments.count)"
+        }
+        return "\(clampedPageIndex + 1) / \(attachments.count)"
+    }
+
+    private var canGoBack: Bool {
+        clampedPageIndex > 0
+    }
+
+    private var canGoForward: Bool {
+        if twoPageMode {
+            return (clampedPageIndex + 2) < attachments.count
+        }
+        return (clampedPageIndex + 1) < attachments.count
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Chart PDF")
+                Text("Sheet Music")
                     .font(.headline)
                 Spacer()
-                if !pageImages.isEmpty {
-                    Text("Page \(pageIndex + 1)/\(pageImages.count)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if attachments.count > 1 {
+                    Button(twoPageMode ? "1 Page" : "2 Pages") {
+                        twoPageMode.toggle()
+                        if twoPageMode {
+                            pageIndex = (clampedPageIndex / 2) * 2
+                        }
+                    }
+                    .buttonStyle(.bordered)
                 }
+                Text("Page \(pageLabel)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
-            if pageImages.isEmpty {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-                    .frame(height: 260)
-                    .overlay {
-                        Text("Unable to preview PDF")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+            GeometryReader { proxy in
+                if twoPageMode {
+                    let paneWidth = max(0, (proxy.size.width - 6) * 0.5)
+                    HStack(spacing: 6) {
+                        SongFullscreenAttachmentPage(
+                            attachment: attachments[clampedPageIndex],
+                            refreshToken: refreshToken
+                        )
+                        .frame(width: paneWidth, height: proxy.size.height)
+                        .clipped()
+
+                        if let rightPageIndex {
+                            SongFullscreenAttachmentPage(
+                                attachment: attachments[rightPageIndex],
+                                refreshToken: refreshToken
+                            )
+                            .frame(width: paneWidth, height: proxy.size.height)
+                            .clipped()
+                        } else {
+                            Color.black.opacity(0.92)
+                                .frame(width: paneWidth, height: proxy.size.height)
+                        }
                     }
+                } else {
+                    SongFullscreenAttachmentPage(
+                        attachment: attachments[clampedPageIndex],
+                        refreshToken: refreshToken
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .clipped()
+
+            HStack(spacing: 10) {
+                Button {
+                    stepBack()
+                } label: {
+                    Label("Back", systemImage: "chevron.backward")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canGoBack)
+
+                Button {
+                    onMarkup(clampedPageIndex)
+                } label: {
+                    Label("Markup", systemImage: "pencil.tip")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    stepForward()
+                } label: {
+                    Label("Next", systemImage: "chevron.forward")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canGoForward)
+            }
+        }
+    }
+
+    private func stepBack() {
+        guard canGoBack else { return }
+        let step = twoPageMode ? 2 : 1
+        pageIndex = max(0, clampedPageIndex - step)
+    }
+
+    private func stepForward() {
+        guard canGoForward else { return }
+        let step = twoPageMode ? 2 : 1
+        pageIndex = min(attachments.count - 1, clampedPageIndex + step)
+    }
+}
+
+private struct SongAttachmentPreviewCard: View {
+    let attachment: SongAttachment
+    @State private var previewImage: UIImage?
+    @State private var isLoading = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.07))
+
+            if let previewImage {
+                Image(uiImage: previewImage)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(8)
+            } else if isLoading {
+                ProgressView()
+                    .tint(.white)
             } else {
-                TabView(selection: $pageIndex) {
-                    ForEach(Array(pageImages.enumerated()), id: \.offset) { index, image in
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.black.opacity(0.35))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .padding(.horizontal, 2)
+                VStack(spacing: 8) {
+                    Image(systemName: attachment.kind == .pdf ? "doc.richtext" : "photo")
+                        .font(.title2)
+                    Text(attachment.originalFileName)
+                        .font(.caption)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onAppear {
+            loadPreview(force: true)
+        }
+        .onChange(of: attachment.path) { _, _ in
+            loadPreview(force: true)
+        }
+    }
+
+    private func loadPreview(force: Bool = false) {
+        if force {
+            previewImage = nil
+        } else if previewImage != nil {
+            return
+        }
+        guard let url = attachment.resolvedURL else { return }
+        isLoading = true
+
+        previewImage = fallbackPreviewImage(for: url)
+        isLoading = false
+    }
+
+    private func fallbackPreviewImage(for url: URL) -> UIImage? {
+        switch attachment.kind {
+        case .image:
+            return UIImage(contentsOfFile: url.path)
+        case .pdf:
+            guard
+                let document = PDFDocument(url: url),
+                let firstPage = document.page(at: 0)
+            else { return nil }
+            return firstPage.thumbnail(of: CGSize(width: 1200, height: 1600), for: .mediaBox)
+        }
+    }
+}
+
+private struct SongMediaFullscreenReader: View {
+    @Environment(\.dismiss) private var dismiss
+    let song: Song
+    let initialAttachmentIndex: Int
+
+    @State private var selectedIndex = 0
+    @State private var refreshToken = UUID()
+    @State private var markupSession: SongMarkupSession?
+
+    private var attachments: [SongAttachment] {
+        song.mediaAttachments
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if attachments.isEmpty {
+                ContentUnavailableView("No sheet music", systemImage: "doc")
+            } else {
+                TabView(selection: $selectedIndex) {
+                    ForEach(Array(attachments.enumerated()), id: \.element.id) { index, attachment in
+                        SongFullscreenAttachmentPage(
+                            attachment: attachment,
+                            refreshToken: refreshToken
+                        )
                             .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 260)
+                .ignoresSafeArea(edges: .bottom)
             }
         }
-        .onAppear(perform: loadPages)
+        .safeAreaInset(edge: .bottom) {
+            HStack(spacing: 10) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Done", systemImage: "chevron.down")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                if attachments.indices.contains(selectedIndex) {
+                    Text("\(selectedIndex + 1) / \(attachments.count)")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+
+                Spacer()
+
+                if attachments.indices.contains(selectedIndex),
+                   attachments[selectedIndex].resolvedURL != nil {
+                    Button {
+                        markupSession = SongMarkupSession(initialIndex: selectedIndex)
+                    } label: {
+                        Label("Markup", systemImage: "pencil.tip")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+            .background(.ultraThinMaterial)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .sheet(item: $markupSession) { session in
+            SongMarkupEditorSheet(
+                attachments: attachments,
+                initialIndex: session.initialIndex
+            ) {
+                refreshToken = UUID()
+            }
+        }
+        .onAppear {
+            guard !attachments.isEmpty else { return }
+            selectedIndex = min(max(0, initialAttachmentIndex), attachments.count - 1)
+        }
+    }
+}
+
+private struct SongMarkupSession: Identifiable, Hashable {
+    let id = UUID()
+    let initialIndex: Int
+}
+
+private struct SongMarkupEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let attachments: [SongAttachment]
+    let initialIndex: Int
+    var onFinished: () -> Void
+
+    var body: some View {
+        SongQuickLookMarkupController(
+            attachments: attachments,
+            initialIndex: initialIndex
+        ) {
+            onFinished()
+            dismiss()
+        }
+        .ignoresSafeArea()
+    }
+}
+
+private struct SongQuickLookMarkupController: UIViewControllerRepresentable {
+    let attachments: [SongAttachment]
+    let initialIndex: Int
+    var onClose: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
     }
 
-    private func loadPages() {
-        guard let document = PDFDocument(url: url) else {
-            pageImages = []
-            return
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let previewController = QLPreviewController()
+        previewController.dataSource = context.coordinator
+        previewController.delegate = context.coordinator
+        previewController.currentPreviewItemIndex = context.coordinator.clampedInitialIndex
+        previewController.navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .done,
+            target: context.coordinator,
+            action: #selector(Coordinator.closePressed)
+        )
+        context.coordinator.previewController = previewController
+        return UINavigationController(rootViewController: previewController)
+    }
+
+    func updateUIViewController(_ uiViewController: UINavigationController, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.previewController?.reloadData()
+    }
+
+    final class Coordinator: NSObject, QLPreviewControllerDataSource, @preconcurrency QLPreviewControllerDelegate {
+        var parent: SongQuickLookMarkupController
+        weak var previewController: QLPreviewController?
+        private var didRequestClose = false
+
+        init(parent: SongQuickLookMarkupController) {
+            self.parent = parent
         }
 
-        var images: [UIImage] = []
-        for index in 0..<document.pageCount {
-            guard let page = document.page(at: index) else { continue }
-            images.append(page.thumbnail(of: CGSize(width: 1000, height: 1400), for: .mediaBox))
+        var previewURLs: [URL] {
+            parent.attachments.compactMap(\.resolvedURL)
         }
-        pageImages = images
-        pageIndex = 0
+
+        var clampedInitialIndex: Int {
+            min(max(0, parent.initialIndex), max(0, previewURLs.count - 1))
+        }
+
+        @objc
+        func closePressed() {
+            closeIfNeeded()
+        }
+
+        private func closeIfNeeded() {
+            guard !didRequestClose else { return }
+            didRequestClose = true
+            parent.onClose()
+        }
+
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+            previewURLs.count
+        }
+
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+            previewURLs[index] as NSURL
+        }
+
+        func previewControllerWillDismiss(_ controller: QLPreviewController) {
+            closeIfNeeded()
+        }
+
+        func previewController(
+            _ controller: QLPreviewController,
+            editingModeFor previewItem: QLPreviewItem
+        ) -> QLPreviewItemEditingMode {
+            .updateContents
+        }
+    }
+}
+
+private struct SongFullscreenAttachmentPage: View {
+    let attachment: SongAttachment
+    let refreshToken: UUID
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            switch attachment.kind {
+            case .pdf:
+                if let url = attachment.resolvedURL {
+                    SongFullscreenPDFView(url: url, refreshToken: refreshToken)
+                } else {
+                    SongFullscreenUnavailableView(fileName: attachment.originalFileName)
+                }
+            case .image:
+                if let image {
+                    GeometryReader { proxy in
+                        ScrollView(.vertical, showsIndicators: false) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: proxy.size.width)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                } else {
+                    ProgressView()
+                        .tint(.white)
+                        .task {
+                            loadImage()
+                        }
+                }
+            }
+        }
+        .onChange(of: refreshToken) { _, _ in
+            if attachment.kind == .image {
+                image = nil
+                loadImage()
+            }
+        }
+    }
+
+    private func loadImage() {
+        guard image == nil else { return }
+        guard let url = attachment.resolvedURL else { return }
+        image = UIImage(contentsOfFile: url.path)
+    }
+}
+
+private struct SongFullscreenUnavailableView: View {
+    let fileName: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.title2)
+            Text("Unable to load \(fileName)")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct SongFullscreenPDFView: UIViewRepresentable {
+    let url: URL
+    let refreshToken: UUID
+
+    final class Coordinator {
+        var loadedURL: URL?
+        var loadedToken: UUID?
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.displayDirection = .vertical
+        view.backgroundColor = .black
+        view.displaysPageBreaks = false
+        view.usePageViewController(false, withViewOptions: nil)
+        return view
+    }
+
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        let shouldReload = context.coordinator.loadedURL != url || context.coordinator.loadedToken != refreshToken
+        guard shouldReload else { return }
+
+        context.coordinator.loadedURL = url
+        context.coordinator.loadedToken = refreshToken
+        uiView.document = PDFDocument(url: url)
+        uiView.autoScales = true
+        uiView.goToFirstPage(nil)
     }
 }

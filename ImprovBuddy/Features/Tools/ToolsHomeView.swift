@@ -10,6 +10,7 @@ struct ToolsHomeView: View {
 
 struct ToolsStudioView: View {
     @EnvironmentObject private var services: ServiceContainer
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @StateObject private var tunerPreviewSynth = SimpleSynth()
 
@@ -25,6 +26,10 @@ struct ToolsStudioView: View {
     @State private var tunerHeldMIDINote: Int?
     @State private var tunerSustainedMIDINote: Int?
     @State private var keyboardHeight: CGFloat = 0
+    @State private var dropUpOpenedAt: Date = .distantPast
+    @State private var dropUpSelectionEnabled = true
+    @State private var dropUpUnlockTask: Task<Void, Never>?
+    @State private var beatFlashTask: Task<Void, Never>?
     @FocusState private var isBPMFieldFocused: Bool
 
     @State private var micLease: AudioUsageCoordinator.LeaseToken?
@@ -63,6 +68,9 @@ struct ToolsStudioView: View {
     private var shouldShowCountInOverlay: Bool {
         services.metronomeEngine.isCountInActive && countInTotalBeats > 0
     }
+    private var isRegularWidth: Bool { horizontalSizeClass == .regular }
+    private var studioMaxWidth: CGFloat { isRegularWidth ? 980 : .infinity }
+    private var soundDropUpWidth: CGFloat { isRegularWidth ? 300 : 248 }
     private var contentLiftOffset: CGFloat {
         guard isBPMFieldFocused else { return 0 }
         let dynamicLift = max(138, min(232, keyboardHeight * 0.56))
@@ -113,6 +121,8 @@ struct ToolsStudioView: View {
                 studioSurface
                 bottomControlRow
             }
+            .frame(maxWidth: studioMaxWidth)
+            .frame(maxWidth: .infinity)
             .offset(y: contentLiftOffset)
             .animation(.spring(response: 0.28, dampingFraction: 0.88), value: isBPMFieldFocused)
 
@@ -121,6 +131,8 @@ struct ToolsStudioView: View {
                     Spacer()
                     topTrailingToolsRail
                 }
+                .frame(maxWidth: studioMaxWidth)
+                .frame(maxWidth: .infinity)
                 Spacer()
             }
 
@@ -195,12 +207,21 @@ struct ToolsStudioView: View {
         }
         .onChange(of: services.metronomeEngine.beatPulseID) { _, _ in
             guard services.metronomeEngine.isRunning else { return }
-            withAnimation(.easeOut(duration: 0.1)) {
+            beatFlashTask?.cancel()
+
+            let bpm = max(30, services.metronomeEngine.bpm)
+            let beatPeriod = 60.0 / bpm
+            let holdDuration = min(0.12, max(0.05, beatPeriod * 0.34))
+            let fadeDuration = min(0.2, max(0.08, beatPeriod * 0.44))
+
+            withAnimation(.easeOut(duration: min(0.08, holdDuration * 0.7))) {
                 beatFlash = true
             }
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 120_000_000)
-                withAnimation(.easeIn(duration: 0.22)) {
+
+            beatFlashTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(holdDuration * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeIn(duration: fadeDuration)) {
                     beatFlash = false
                 }
             }
@@ -216,13 +237,17 @@ struct ToolsStudioView: View {
             activeDropUp = nil
             tunerHeldMIDINote = nil
             tunerSustainedMIDINote = nil
+            dropUpUnlockTask?.cancel()
+            dropUpUnlockTask = nil
+            dropUpSelectionEnabled = true
+            beatFlashTask?.cancel()
         }
     }
 
     private var studioSurface: some View {
         VStack(spacing: 14) {
             tunerSection
-                .frame(minHeight: 194)
+                .frame(minHeight: 282)
             metronomeSection
         }
     }
@@ -255,11 +280,11 @@ struct ToolsStudioView: View {
                         toggleTunerSustain()
                     }
                 )
-                .frame(width: 144, height: 144)
+                .frame(width: 186, height: 248)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(services.tunerEngine.noteName)
-                        .font(.system(size: 80, weight: .heavy, design: .rounded))
+                        .font(.system(size: 94, weight: .heavy, design: .rounded))
                         .lineLimit(1)
                         .minimumScaleFactor(0.4)
 
@@ -354,7 +379,7 @@ struct ToolsStudioView: View {
                     handleBPMChange(value)
                 }
             )
-            .frame(height: 62)
+            .frame(height: 68)
 
             HStack(spacing: 12) {
                 DropUpActionButton(
@@ -388,7 +413,7 @@ struct ToolsStudioView: View {
                 }
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 88)
+                .frame(height: 98)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(Color.accentColor.opacity(0.14))
@@ -410,7 +435,7 @@ struct ToolsStudioView: View {
                     }
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 88)
+                    .frame(height: 98)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.accentColor.opacity(0.2))
@@ -578,6 +603,7 @@ struct ToolsStudioView: View {
                 ForEach(meterPresets, id: \.displayName) { meter in
                     overlayOptionButton(
                         label: meter.displayName,
+                        menu: .meter,
                         selected: meter == services.metronomeEngine.meter
                     ) {
                         updateMetronomeSettings { settings in
@@ -589,6 +615,7 @@ struct ToolsStudioView: View {
                 ForEach(MetronomeSubdivision.allCases) { option in
                     overlayOptionButton(
                         label: option.notationSymbol,
+                        menu: .subdivision,
                         selected: option == services.metronomeEngine.subdivision,
                         largeSymbol: true
                     ) {
@@ -601,6 +628,7 @@ struct ToolsStudioView: View {
                 ForEach(0...4, id: \.self) { bars in
                     overlayOptionButton(
                         label: "\(bars) bars",
+                        menu: .countIn,
                         selected: bars == services.metronomeEngine.countInBars
                     ) {
                         updateMetronomeSettings { settings in
@@ -620,6 +648,7 @@ struct ToolsStudioView: View {
                     ForEach(MetronomeSoundSet.allCases) { soundSet in
                         overlayOptionButton(
                             label: soundSet.displayName,
+                            menu: .sound,
                             selected: soundSet == services.metronomeEngine.soundSet,
                             compact: true
                         ) {
@@ -632,22 +661,27 @@ struct ToolsStudioView: View {
             }
         }
         .padding(8)
-        .frame(width: kind == .sound ? 300 : 118)
+        .frame(width: kind == .sound ? soundDropUpWidth : 118)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.white.opacity(0.14), lineWidth: 1)
         )
+        .allowsHitTesting(activeDropUp == kind && dropUpSelectionEnabled)
     }
 
     private func overlayOptionButton(
         label: String,
+        menu: BottomDropUpMenu,
         selected: Bool,
         largeSymbol: Bool = false,
         compact: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button {
+            guard activeDropUp == menu else { return }
+            guard dropUpSelectionEnabled else { return }
+            guard Date().timeIntervalSince(dropUpOpenedAt) > 0.22 else { return }
             action()
             withAnimation(.easeOut(duration: 0.16)) {
                 activeDropUp = nil
@@ -672,8 +706,25 @@ struct ToolsStudioView: View {
     }
 
     private func toggleDropUp(_ menu: BottomDropUpMenu) {
+        dropUpUnlockTask?.cancel()
+        dropUpSelectionEnabled = false
         withAnimation(.easeOut(duration: 0.16)) {
-            activeDropUp = activeDropUp == menu ? nil : menu
+            let next = activeDropUp == menu ? nil : menu
+            activeDropUp = next
+            if next != nil {
+                dropUpOpenedAt = Date()
+                dropUpUnlockTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 360_000_000)
+                    guard !Task.isCancelled, activeDropUp == next else { return }
+                    dropUpSelectionEnabled = true
+                }
+            } else {
+                dropUpUnlockTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 90_000_000)
+                    guard !Task.isCancelled else { return }
+                    dropUpSelectionEnabled = true
+                }
+            }
         }
     }
 
@@ -919,20 +970,32 @@ private struct PitchAccuracyRing: View {
     @State private var touchStartDate: Date?
     @State private var didTriggerSustainSwipe = false
 
-    private var normalizedAccuracy: Double {
-        max(0, min(1, 1 - abs(cents) / 35))
+    private var clampedCents: Double {
+        max(-50, min(50, cents))
     }
 
-    private var progress: Double {
-        max(0.05, normalizedAccuracy * max(0.25, min(1, confidence)))
+    private var markerProgress: Double {
+        (clampedCents + 50) / 100
     }
 
-    private var tintColor: Color {
-        switch normalizedAccuracy {
-        case 0.75...: .green
-        case 0.45..<0.75: .yellow
-        default: .red
+    private var directionLabel: String {
+        if clampedCents < -3 {
+            return "Tune Up ↑"
         }
+        if clampedCents > 3 {
+            return "Tune Down ↓"
+        }
+        return "In Tune"
+    }
+
+    private var directionColor: Color {
+        if abs(clampedCents) <= 3 {
+            return .green
+        }
+        if abs(clampedCents) <= 15 {
+            return .yellow
+        }
+        return .red
     }
 
     private var shouldShowSustainBadge: Bool {
@@ -940,54 +1003,107 @@ private struct PitchAccuracyRing: View {
     }
 
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.12), lineWidth: 11)
-
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(
-                    AngularGradient(
-                        gradient: Gradient(colors: [.red, .yellow, .green]),
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 11, lineCap: .round)
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
-                .rotationEffect(.degrees(-90))
 
-            VStack(spacing: 2) {
-                Text("\(Int(round(normalizedAccuracy * 100)))%")
-                    .font(.headline.monospacedDigit())
-                Text("Pitch")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(tintColor)
-            }
-
-            if shouldShowSustainBadge {
-                TopInnerSemicircle()
-                    .fill(isSustainActive ? Color.accentColor.opacity(0.94) : Color.white.opacity(0.18))
-                    .frame(width: 88, height: 44)
-                    .overlay(
-                        TopInnerSemicircle()
-                            .stroke(isSustainActive ? Color.accentColor : Color.white.opacity(0.28), lineWidth: 1)
-                    )
-                    .overlay {
-                        VStack(spacing: 1) {
-                            Text("Sustain")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(isSustainActive ? Color.white : Color.primary)
-                            if isHolding && !isSustainActive {
-                                Text("swipe up")
-                                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(isSustainActive ? Color.white.opacity(0.9) : Color.primary.opacity(0.8))
+            VStack(spacing: 8) {
+                if shouldShowSustainBadge {
+                    TopInnerSemicircle()
+                        .fill(isSustainActive ? Color.accentColor.opacity(0.94) : Color.white.opacity(0.18))
+                        .frame(width: 96, height: 42)
+                        .overlay(
+                            TopInnerSemicircle()
+                                .stroke(isSustainActive ? Color.accentColor : Color.white.opacity(0.28), lineWidth: 1)
+                        )
+                        .overlay {
+                            VStack(spacing: 1) {
+                                Text("Sustain")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(isSustainActive ? Color.white : Color.primary)
+                                if isHolding && !isSustainActive {
+                                    Text("swipe up")
+                                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(isSustainActive ? Color.white.opacity(0.9) : Color.primary.opacity(0.8))
+                                }
                             }
+                            .padding(.top, 6)
                         }
-                        .padding(.top, 6)
+                        .padding(.top, 2)
+                } else {
+                    Color.clear
+                        .frame(height: 18)
+                }
+
+                VStack(spacing: 7) {
+                    GeometryReader { geo in
+                        let markerHeight: CGFloat = 5
+                        let verticalInset: CGFloat = 6
+                        let usableHeight = max(1, geo.size.height - markerHeight - verticalInset * 2)
+                        let markerY = verticalInset + (1 - CGFloat(markerProgress)) * usableHeight
+
+                        ZStack(alignment: .top) {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.red, .yellow, .green, .yellow, .red],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+
+                            Rectangle()
+                                .fill(Color.white.opacity(0.98))
+                                .frame(width: max(12, geo.size.width - 6), height: markerHeight)
+                                .cornerRadius(2)
+                                .offset(y: markerY)
+                                .shadow(color: .white.opacity(0.55), radius: 2, y: 0)
+                                .shadow(color: .black.opacity(0.42), radius: 3, y: 0)
+                                .opacity(max(0.6, min(1, confidence + 0.2)))
+
+                            VStack(spacing: 0) {
+                                HStack {
+                                    Text("♯")
+                                    Spacer()
+                                }
+                                Spacer()
+                                HStack {
+                                    Text("♮")
+                                    Spacer()
+                                }
+                                Spacer()
+                                HStack {
+                                    Text("♭")
+                                    Spacer()
+                                }
+                            }
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.white.opacity(0.85))
+                            .padding(.leading, 8)
+                            .padding(.vertical, 6)
+                        }
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
                     }
-                    .offset(y: -42)
+                    .frame(height: 142)
+                    .animation(.easeOut(duration: 0.11), value: clampedCents)
+                    .animation(.easeOut(duration: 0.11), value: confidence)
+
+                    Text(directionLabel)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(directionColor)
+                }
+                .padding(.horizontal, 9)
+                .padding(.bottom, 10)
             }
         }
-        .contentShape(Circle())
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { gesture in
@@ -1219,7 +1335,7 @@ private struct BottomSquareControlButton: View {
             }
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity)
-            .frame(height: 90)
+            .frame(height: 98)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(isActive ? Color.accentColor.opacity(0.28) : Color.accentColor.opacity(0.14))
@@ -1251,7 +1367,7 @@ private struct DropUpActionButton: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 88)
+            .frame(height: 98)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(isActive ? Color.accentColor.opacity(0.28) : Color.accentColor.opacity(0.14))

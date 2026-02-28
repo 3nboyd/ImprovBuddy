@@ -1,7 +1,5 @@
-import PDFKit
 import SwiftData
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct SongEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -16,17 +14,10 @@ struct SongEditorView: View {
     @State private var feel: FeelType = .swing
     @State private var timeSignatureTop = 4
     @State private var timeSignatureBottom = 4
-    @State private var measures: [EditableMeasure] = []
+    @State private var attachments: [SongAttachment] = []
 
-    @State private var showingTextImport = false
-    @State private var showingChartFileImport = false
-    @State private var showingPDFPicker = false
-    @State private var showingPDFPreview = false
-    @State private var pdfReferencePath: String?
-    @State private var chartImportMessage = ""
-    @State private var pdfImportMessage = ""
-
-    @State private var parseErrors: [Int] = []
+    @State private var showingMediaPicker = false
+    @State private var mediaImportMessage = ""
 
     init(song: Song?) {
         self.song = song
@@ -61,88 +52,38 @@ struct SongEditorView: View {
                     }
                 }
 
-                Section("Chord Form") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Button("Import Text Chart") {
-                                showingTextImport = true
-                            }
-
-                            Button("Import File") {
-                                showingChartFileImport = true
-                            }
-
-                            Button("Add Measure") {
-                                let nextIndex = measures.count
-                                measures.append(EditableMeasure(index: nextIndex, sectionLabel: nil, chordSymbol: "Cmaj7", rehearsalMark: nil))
-                            }
-                        }
-
-                        if !parseErrors.isEmpty {
-                            Text("Chord parse warning in measures: \(parseErrors.map { String($0 + 1) }.joined(separator: ", ")).")
-                                .font(.footnote)
-                                .foregroundStyle(.orange)
-                        }
-
-                        if !chartImportMessage.isEmpty {
-                            Text(chartImportMessage)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    ForEach($measures) { $measure in
-                        HStack(alignment: .top) {
-                            Text("\(measure.index + 1)")
-                                .frame(width: 30, alignment: .leading)
-                                .foregroundStyle(.secondary)
-
-                            TextField("Section", text: Binding(
-                                get: { measure.sectionLabel ?? "" },
-                                set: { measure.sectionLabel = $0.isEmpty ? nil : $0 }
-                            ))
-                            .frame(width: 70)
-
-                            TextField("Chord", text: $measure.chordSymbol)
-                                .textInputAutocapitalization(.characters)
-
-                            TextField("Mark", text: Binding(
-                                get: { measure.rehearsalMark ?? "" },
-                                set: { measure.rehearsalMark = $0.isEmpty ? nil : $0 }
-                            ))
-                            .frame(width: 80)
-
-                            Button(role: .destructive) {
-                                deleteMeasure(id: measure.id)
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                        }
-                        .font(.callout)
-                    }
-                }
-
-                Section("PDF Reference") {
-                    if let pdfReferencePath,
-                       let url = URL(string: pdfReferencePath) {
-                        Text(url.lastPathComponent)
+                Section("Sheet Music") {
+                    if attachments.isEmpty {
+                        Text("No files attached")
                             .font(.subheadline)
-                        HStack {
-                            Button("Preview") {
-                                showingPDFPreview = true
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(attachments) { attachment in
+                            HStack(spacing: 10) {
+                                Image(systemName: attachment.kind == .pdf ? "doc.richtext" : "photo")
+                                    .foregroundStyle(.secondary)
+                                Text(attachment.originalFileName)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button(role: .destructive) {
+                                    removeAttachment(id: attachment.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.plain)
                             }
-                            Button("Remove", role: .destructive) {
-                                self.pdfReferencePath = nil
-                            }
+                            .padding(.vertical, 2)
                         }
                     }
 
-                    Button("Import PDF Reference") {
-                        showingPDFPicker = true
+                    Button {
+                        showingMediaPicker = true
+                    } label: {
+                        Label("Add Files", systemImage: "paperclip")
                     }
 
-                    if !pdfImportMessage.isEmpty {
-                        Text(pdfImportMessage)
+                    if !mediaImportMessage.isEmpty {
+                        Text(mediaImportMessage)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -150,65 +91,49 @@ struct SongEditorView: View {
             }
             .navigationTitle(song == nil ? "New Song" : "Edit Song")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveSong() }
-                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || measures.isEmpty)
-                }
-            }
-            .sheet(isPresented: $showingTextImport) {
-                TextChartImportView { imported in
-                    measures = imported.enumerated().map { index, measure in
-                        EditableMeasure(
-                            id: measure.id,
-                            index: index,
-                            sectionLabel: measure.sectionLabel,
-                            chordSymbol: measure.chordSymbol,
-                            rehearsalMark: measure.rehearsalMark
-                        )
+            .navigationBarBackButtonHidden(true)
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: 10) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Back", systemImage: "chevron.backward")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
                     }
-                    validateChords()
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Button("Save") {
+                        saveSong()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-            }
-            .sheet(isPresented: $showingPDFPreview) {
-                if let pdfReferencePath,
-                   let url = URL(string: pdfReferencePath) {
-                    PDFReferenceView(url: url)
-                } else {
-                    Text("No PDF selected")
-                        .padding()
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .top) {
+                    Divider().opacity(0.2)
                 }
             }
             .fileImporter(
-                isPresented: $showingChartFileImport,
-                allowedContentTypes: chartImportTypes,
-                allowsMultipleSelection: false
+                isPresented: $showingMediaPicker,
+                allowedContentTypes: SongMediaStorage.allowedImportTypes,
+                allowsMultipleSelection: true
             ) { result in
-                handleChartFileImport(result)
-            }
-            .fileImporter(
-                isPresented: $showingPDFPicker,
-                allowedContentTypes: [.pdf],
-                allowsMultipleSelection: false
-            ) { result in
-                handlePDFImport(result)
+                handleMediaImport(result)
             }
             .onAppear(perform: loadData)
-            .onChange(of: measures, initial: false) { _, _ in
-                validateChords()
-            }
         }
     }
 
     private func loadData() {
         guard let song else {
-            if measures.isEmpty {
-                measures = [EditableMeasure(index: 0, sectionLabel: "A", chordSymbol: "Cmaj7", rehearsalMark: nil)]
-            }
             return
         }
 
@@ -219,63 +144,45 @@ struct SongEditorView: View {
         feel = song.feel
         timeSignatureTop = song.timeSignatureTop
         timeSignatureBottom = song.timeSignatureBottom
-        pdfReferencePath = song.pdfReferencePath
 
-        measures = song.form.sorted { $0.index < $1.index }.map {
-            EditableMeasure(
-                id: $0.id,
-                index: $0.index,
-                sectionLabel: $0.sectionLabel,
-                chordSymbol: $0.chordSymbol,
-                rehearsalMark: $0.rehearsalMark
-            )
+        if song.migrateLegacyPDFReferenceIfNeeded() {
+            song.touch()
+            try? modelContext.save()
         }
-
-        if measures.isEmpty {
-            measures = [EditableMeasure(index: 0, sectionLabel: "A", chordSymbol: "Cmaj7", rehearsalMark: nil)]
-        }
-
-        validateChords()
+        attachments = song.mediaAttachments
     }
 
     private func saveSong() {
-        let normalizedMeasures = measures.enumerated().map { offset, measure in
-            Measure(
-                index: offset,
-                sectionLabel: measure.sectionLabel,
-                chordSymbol: measure.chordSymbol,
-                parsedChord: ChordParser.parse(symbol: measure.chordSymbol),
-                rehearsalMark: measure.rehearsalMark
-            )
-        }
-
         let parsedTags = Song.normalizedTags(from: styleTagsText
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty })
 
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedComposer = composer.trimmingCharacters(in: .whitespacesAndNewlines)
+
         if let song {
-            song.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            song.composer = composer.isEmpty ? nil : composer
+            song.title = trimmedTitle
+            song.composer = normalizedComposer.isEmpty ? nil : normalizedComposer
             song.tags = parsedTags
             song.defaultTempoBPM = defaultTempoBPM
             song.feel = feel
             song.timeSignatureTop = timeSignatureTop
             song.timeSignatureBottom = timeSignatureBottom
-            song.form = normalizedMeasures
-            song.pdfReferencePath = pdfReferencePath
+            song.form = []
+            song.attachments = attachments
             song.touch()
         } else {
             let newSong = Song(
-                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                composer: composer.isEmpty ? nil : composer,
+                title: trimmedTitle,
+                composer: normalizedComposer.isEmpty ? nil : normalizedComposer,
                 styleTags: parsedTags,
                 defaultTempoBPM: defaultTempoBPM,
                 feel: feel,
                 timeSignatureTop: timeSignatureTop,
                 timeSignatureBottom: timeSignatureBottom,
-                form: normalizedMeasures,
-                pdfReferencePath: pdfReferencePath
+                form: [],
+                attachments: attachments
             )
             modelContext.insert(newSong)
         }
@@ -284,278 +191,51 @@ struct SongEditorView: View {
         dismiss()
     }
 
-    private func deleteMeasure(id: UUID) {
-        measures.removeAll { $0.id == id }
-        for (index, _) in measures.enumerated() {
-            measures[index].index = index
-        }
-        validateChords()
-    }
+    private func handleMediaImport(_ result: Result<[URL], Error>) {
+        guard case let .success(urls) = result, !urls.isEmpty else { return }
 
-    private func validateChords() {
-        parseErrors = measures
-            .enumerated()
-            .compactMap { index, measure in
-                ChordParser.parse(symbol: measure.chordSymbol) == nil ? index : nil
+        let securedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
+        defer {
+            for securedURL in securedURLs {
+                securedURL.stopAccessingSecurityScopedResource()
             }
-    }
-
-    private func handlePDFImport(_ result: Result<[URL], Error>) {
-        guard case let .success(urls) = result, let source = urls.first else { return }
-
-        let destinationFolder = FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)
-            .first?
-            .appendingPathComponent("SongPDFs", isDirectory: true)
-
-        guard let destinationFolder else { return }
+        }
 
         do {
-            try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
-            let destination = destinationFolder.appendingPathComponent("\(UUID().uuidString)-\(source.lastPathComponent)")
-
-            _ = source.startAccessingSecurityScopedResource()
-            defer { source.stopAccessingSecurityScopedResource() }
-
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
-            }
-
-            try FileManager.default.copyItem(at: source, to: destination)
-            pdfReferencePath = destination.absoluteString
-
-            let extracted = PDFSongMetadataExtractor.extract(from: destination)
-            if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                title = extracted.title
-            }
-            if composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                composer = extracted.author ?? ""
-            }
-            pdfImportMessage = "Metadata: \(extracted.source.rawValue)"
-        } catch {
-            print("PDF import failed: \(error)")
-            pdfImportMessage = "PDF import failed: \(error.localizedDescription)"
-        }
-    }
-
-    private var chartImportTypes: [UTType] {
-        var types: [UTType] = [.plainText, .utf8PlainText, .xml]
-        if let ireal = UTType(filenameExtension: "irealpro") {
-            types.append(ireal)
-        }
-        if let irealb = UTType(filenameExtension: "irealb") {
-            types.append(irealb)
-        }
-        if let musicXML = UTType(filenameExtension: "musicxml") {
-            types.append(musicXML)
-        }
-        return types
-    }
-
-    private func handleChartFileImport(_ result: Result<[URL], Error>) {
-        guard case let .success(urls) = result, let source = urls.first else { return }
-
-        _ = source.startAccessingSecurityScopedResource()
-        defer { source.stopAccessingSecurityScopedResource() }
-
-        do {
-            let data = try Data(contentsOf: source)
-            let imported = SongChartImportParser.parse(data: data, fileExtension: source.pathExtension.lowercased())
+            let imported = try SongMediaStorage.copyAttachments(from: urls)
             guard !imported.isEmpty else {
-                chartImportMessage = "No measures found in file."
+                mediaImportMessage = "No supported files selected."
                 return
             }
 
-            measures = imported.enumerated().map { index, measure in
-                EditableMeasure(
-                    id: measure.id,
-                    index: index,
-                    sectionLabel: measure.sectionLabel,
-                    chordSymbol: measure.chordSymbol,
-                    rehearsalMark: measure.rehearsalMark
-                )
+            var existingPaths = Set(attachments.map(\.path))
+            for attachment in imported where !existingPaths.contains(attachment.path) {
+                attachments.append(attachment)
+                existingPaths.insert(attachment.path)
             }
-            chartImportMessage = "Imported \(imported.count) measures."
-            validateChords()
+
+            if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if
+                    let firstPDF = imported.first(where: { $0.kind == .pdf }),
+                    let pdfURL = firstPDF.resolvedURL
+                {
+                    let metadata = PDFSongMetadataExtractor.extract(from: pdfURL)
+                    title = metadata.title
+                    if composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        composer = metadata.author ?? ""
+                    }
+                } else {
+                    title = SongMediaStorage.titleFallback(from: imported.first)
+                }
+            }
+
+            mediaImportMessage = "Added \(imported.count) file\(imported.count == 1 ? "" : "s")."
         } catch {
-            chartImportMessage = "Import failed: \(error.localizedDescription)"
-        }
-    }
-}
-
-private struct EditableMeasure: Identifiable, Equatable {
-    var id: UUID = UUID()
-    var index: Int
-    var sectionLabel: String?
-    var chordSymbol: String
-    var rehearsalMark: String?
-}
-
-private struct PDFReferenceView: View {
-    let url: URL
-
-    var body: some View {
-        PDFKitRepresentable(url: url)
-            .ignoresSafeArea(edges: .bottom)
-    }
-}
-
-private struct PDFKitRepresentable: UIViewRepresentable {
-    let url: URL
-
-    func makeUIView(context: Context) -> PDFView {
-        let view = PDFView()
-        view.autoScales = true
-        view.displayMode = .singlePageContinuous
-        return view
-    }
-
-    func updateUIView(_ uiView: PDFView, context: Context) {
-        uiView.document = PDFDocument(url: url)
-    }
-}
-
-private enum SongChartImportParser {
-    static func parse(data: Data, fileExtension: String) -> [Measure] {
-        if ["xml", "musicxml"].contains(fileExtension),
-           let xmlText = decodeText(data),
-           let xmlMeasures = parseMusicXML(xmlText),
-           !xmlMeasures.isEmpty {
-            return xmlMeasures
-        }
-
-        guard let text = decodeText(data) else { return [] }
-        let irealLike = parseIRealLikeText(text)
-        if !irealLike.isEmpty {
-            return irealLike
-        }
-        return ChordParser.parseTextChart(text)
-    }
-
-    private static func decodeText(_ data: Data) -> String? {
-        if let utf8 = String(data: data, encoding: .utf8) {
-            return utf8
-        }
-        return String(data: data, encoding: .isoLatin1)
-    }
-
-    private static func parseIRealLikeText(_ text: String) -> [Measure] {
-        var normalized = text
-            .replacingOccurrences(of: "irealbook://", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-
-        normalized = normalized.replacingOccurrences(of: ",", with: "|")
-        normalized = normalized.replacingOccurrences(of: ";", with: "|")
-        normalized = normalized.replacingOccurrences(of: "\n", with: "|")
-
-        while normalized.contains("||") {
-            normalized = normalized.replacingOccurrences(of: "||", with: "|")
-        }
-
-        let strippedSections = normalized.replacingOccurrences(
-            of: "\\[[^\\]]+\\]",
-            with: "",
-            options: .regularExpression
-        )
-
-        let tokens = strippedSections
-            .split(separator: "|")
-            .map { token in token.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        guard !tokens.isEmpty else { return [] }
-
-        return tokens.enumerated().map { index, token in
-            Measure(index: index, chordSymbol: token, parsedChord: ChordParser.parse(symbol: token))
+            mediaImportMessage = "Import failed: \(error.localizedDescription)"
         }
     }
 
-    private static func parseMusicXML(_ xml: String) -> [Measure]? {
-        let measurePattern = #"<measure\b[^>]*>(.*?)</measure>"#
-        guard let measureRegex = try? NSRegularExpression(
-            pattern: measurePattern,
-            options: [.dotMatchesLineSeparators, .caseInsensitive]
-        ) else {
-            return nil
-        }
-
-        let ns = xml as NSString
-        let allRange = NSRange(location: 0, length: ns.length)
-        let matches = measureRegex.matches(in: xml, options: [], range: allRange)
-        guard !matches.isEmpty else { return nil }
-
-        var measures: [Measure] = []
-        for (index, match) in matches.enumerated() {
-            guard match.numberOfRanges > 1 else { continue }
-            let body = ns.substring(with: match.range(at: 1))
-            let symbol = firstHarmonySymbol(in: body) ?? "N.C."
-            measures.append(
-                Measure(index: index, chordSymbol: symbol, parsedChord: ChordParser.parse(symbol: symbol))
-            )
-        }
-
-        return measures
-    }
-
-    private static func firstHarmonySymbol(in measureBody: String) -> String? {
-        let harmonyPattern = #"<harmony\b[^>]*>(.*?)</harmony>"#
-        guard let harmonyRegex = try? NSRegularExpression(
-            pattern: harmonyPattern,
-            options: [.dotMatchesLineSeparators, .caseInsensitive]
-        ) else {
-            return nil
-        }
-
-        let ns = measureBody as NSString
-        let allRange = NSRange(location: 0, length: ns.length)
-        guard let harmonyMatch = harmonyRegex.firstMatch(in: measureBody, options: [], range: allRange),
-              harmonyMatch.numberOfRanges > 1 else {
-            return nil
-        }
-
-        let harmonyBody = ns.substring(with: harmonyMatch.range(at: 1))
-        guard let rootStep = firstMatch(in: harmonyBody, pattern: #"<root-step>\s*([A-G])\s*</root-step>"#) else {
-            return nil
-        }
-
-        let rootAlter = Int(firstMatch(in: harmonyBody, pattern: #"<root-alter>\s*(-?\d+)\s*</root-alter>"#) ?? "0") ?? 0
-        let accidental = switch rootAlter {
-        case -1: "b"
-        case 1: "#"
-        default: ""
-        }
-
-        let textKind = firstMatch(in: harmonyBody, pattern: #"<kind[^>]*text=\"([^\"]+)\""#)
-        let valueKind = firstMatch(in: harmonyBody, pattern: #"<kind[^>]*>\s*([^<]+)\s*</kind>"#)
-        let descriptor = normalizeKindDescriptor(textKind ?? valueKind ?? "")
-
-        return "\(rootStep)\(accidental)\(descriptor)"
-    }
-
-    private static func normalizeKindDescriptor(_ input: String) -> String {
-        let kind = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if kind.isEmpty || kind == "major" { return "" }
-        if kind.contains("major-seventh") || kind == "maj7" { return "maj7" }
-        if kind.contains("minor-seventh") || kind == "m7" { return "m7" }
-        if kind.contains("minor") || kind == "min" || kind == "m" { return "m" }
-        if kind.contains("dominant") || kind == "7" { return "7" }
-        if kind.contains("diminished") { return "dim" }
-        if kind.contains("half-diminished") { return "m7b5" }
-        if kind.contains("augmented") { return "aug" }
-        if kind.contains("suspended") { return "sus" }
-        return input.replacingOccurrences(of: " ", with: "")
-    }
-
-    private static func firstMatch(in text: String, pattern: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return nil
-        }
-        let ns = text as NSString
-        let range = NSRange(location: 0, length: ns.length)
-        guard let match = regex.firstMatch(in: text, options: [], range: range), match.numberOfRanges > 1 else {
-            return nil
-        }
-        return ns.substring(with: match.range(at: 1))
+    private func removeAttachment(id: UUID) {
+        attachments.removeAll { $0.id == id }
     }
 }
