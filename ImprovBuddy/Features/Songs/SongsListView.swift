@@ -1703,7 +1703,8 @@ private struct SongFullscreenPDFView: UIViewRepresentable {
     let navigationRequest: SongPDFNavigationRequest?
     var onPageStateChanged: ((Int, Int) -> Void)? = nil
 
-    final class Coordinator: NSObject, PDFViewDelegate {
+    @MainActor
+    final class Coordinator: NSObject, @preconcurrency PDFViewDelegate {
         var loadedURL: URL?
         var loadedToken: UUID?
         var lastNavigationID: UUID?
