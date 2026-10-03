@@ -75,7 +75,7 @@ final class IdeaRecorderEngine: NSObject, ObservableObject {
         stopRecordingTimer()
 
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
         try session.setActive(true)
 
         let url = try audioRecordingURL()
@@ -426,7 +426,9 @@ final class IdeaRecorderEngine: NSObject, ObservableObject {
         stopPlaybackProgressTimer()
 
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.updatePlaybackProgress()
+            Task { @MainActor [weak self] in
+                self?.updatePlaybackProgress()
+            }
         }
         playbackProgressTimer = timer
         RunLoop.main.add(timer, forMode: .common)
@@ -440,7 +442,9 @@ final class IdeaRecorderEngine: NSObject, ObservableObject {
     private func startRecordingTimer() {
         stopRecordingTimer()
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.updateRecordingElapsed()
+            Task { @MainActor [weak self] in
+                self?.updateRecordingElapsed()
+            }
         }
         recordingTimer = timer
         RunLoop.main.add(timer, forMode: .common)

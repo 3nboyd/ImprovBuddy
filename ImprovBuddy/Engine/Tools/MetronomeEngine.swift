@@ -1059,7 +1059,7 @@ final class MetronomeEngine: ObservableObject {
         try session.setCategory(
             .playAndRecord,
             mode: .measurement,
-            options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothHFP]
+            options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth]
         )
         try session.setPreferredIOBufferDuration(0.005)
         try session.setActive(true)
