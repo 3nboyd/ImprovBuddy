@@ -409,6 +409,12 @@ final class MetronomeEngine: ObservableObject {
         var noiseState: UInt64 = 0xA5A5_F00D_1234_5678
     }
 
+    /// The audio buffer list remains valid for the synchronous lifetime of the
+    /// AVAudioSourceNode render callback. `withLock` does not retain this value.
+    private struct RenderAudioBuffers: @unchecked Sendable {
+        let value: UnsafeMutableAudioBufferListPointer
+    }
+
     private let audioEngine = AVAudioEngine()
     private var sourceNode: AVAudioSourceNode?
     private let grooveGenerator = GroovePatternGenerator()
@@ -691,7 +697,9 @@ final class MetronomeEngine: ObservableObject {
         renderLock: OSAllocatedUnfairLock<RenderState>
     ) -> AVAudioSourceNode {
         AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus in
-            let audioBuffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
+            let audioBuffers = RenderAudioBuffers(
+                value: UnsafeMutableAudioBufferListPointer(audioBufferList)
+            )
             let channelCount = Int(audioBufferList.pointee.mNumberBuffers)
 
             renderLock.withLock { state in
@@ -740,7 +748,7 @@ final class MetronomeEngine: ObservableObject {
 
                     let clamped = Float(max(-1, min(1, mixedSample)))
                     for channel in 0..<channelCount {
-                        let pointer = audioBuffers[channel].mData?.assumingMemoryBound(to: Float.self)
+                        let pointer = audioBuffers.value[channel].mData?.assumingMemoryBound(to: Float.self)
                         pointer?[frame] = clamped
                     }
                 }

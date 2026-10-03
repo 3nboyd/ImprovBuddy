@@ -15,6 +15,7 @@ All notable changes to Jade are documented in this file. The project follows [Se
 - Isolated recorder timer updates correctly on the main actor under Swift 6.
 - Isolated PDF page-state callbacks correctly on the main actor.
 - Added explicit AudioToolbox and CoreAudio dependencies required by the metronome render callback.
+- Kept the synchronous audio render buffer safe across Swift 6 sendability checks.
 
 ## [1.0.0] - 2026-02-28
 
