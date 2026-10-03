@@ -14,7 +14,7 @@ All notable changes to Jade are documented in this file. The project follows [Se
 - Restored Xcode 16 compatibility for Bluetooth audio-session options.
 - Isolated recorder timer updates correctly on the main actor under Swift 6.
 - Isolated PDF page-state callbacks correctly on the main actor.
-- Added the explicit AudioToolbox dependency required by the metronome render callback.
+- Added explicit AudioToolbox and CoreAudio dependencies required by the metronome render callback.
 
 ## [1.0.0] - 2026-02-28
 

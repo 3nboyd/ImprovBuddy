@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import AudioToolbox
+import CoreAudio
 import Foundation
 import UIKit
 import os
