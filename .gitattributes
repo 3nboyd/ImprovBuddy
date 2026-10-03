@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+*.swift text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.png binary
+*.pdf binary
+*.storyboard text eol=lf

@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Build and test with Mac Catalyst
+        run: |
+          xcodebuild \
+            -project ImprovBuddy.xcodeproj \
+            -scheme ImprovBuddy \
+            -configuration Debug \
+            -destination 'platform=macOS,variant=Mac Catalyst,name=My Mac' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            test

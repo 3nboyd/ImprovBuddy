@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Xcode user/workspace state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Build products
+DerivedData/
+build/
+.build/
+*.xcresult
+*.ipa
+*.dSYM
+
+# SwiftPM local metadata/cache
+.swiftpm/configuration/
+.swiftpm/security/
+.swiftpm/xcode/xcuserdata/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+
+# Local environment and signing files
+.xcode.env.local
+*.mobileprovision
+*.p12
+
+# Local submission artifacts
+Jade-Submission-*.zip
+Jade-SwiftPM-Submission-*.zip
